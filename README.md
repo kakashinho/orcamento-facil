@@ -2,7 +2,7 @@
 
 <br>
 
-## 📍 Protótipo Navegável
+## 🌀 Protótipo Navegável
 **:link: Clique no link abaixo para visualizar o Protótipo Navegável do projeto:**  
 > [Protótipo Navegável](https://www.figma.com/make/sKKY8iVereo5EtrZqYh6mO/Naveg%C3%A1vel-Or%C3%A7amento-F%C3%A1cil?p=f&fullscreen=1)
 <br>
