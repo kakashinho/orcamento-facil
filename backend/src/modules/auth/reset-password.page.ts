@@ -93,7 +93,9 @@ export function resetPasswordPage(deps: RouteDeps): FastifyPluginAsync {
         await auth.resetPassword(token, password, requestMeta(request));
       } catch (error) {
         if (error instanceof AppError) {
-          const detail = (error.details as { password?: string[] } | undefined)?.password?.join(" ");
+          const detail = Array.isArray(error.details)
+            ? (error.details as Array<{ message: string }>).map((item) => item.message).join(" ")
+            : undefined;
           return reply
             .headers(headers)
             .status(error.statusCode)

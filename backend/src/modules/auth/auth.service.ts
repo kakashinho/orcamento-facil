@@ -73,10 +73,14 @@ export class AuthService {
     };
   }
 
-  private assertPasswordPolicy(password: string, context: { email?: string; username?: string }) {
+  /** Mesmo formato de `details` dos erros de schema: [{ location, path, message }]. */
+  private assertPasswordPolicy(password: string, context: { email?: string; username?: string }, field = "password") {
     const violations = passwordPolicyViolations(password, context);
     if (violations.length > 0) {
-      throw errors.validation("A senha não atende à política de segurança.", { password: violations });
+      throw errors.validation(
+        "A senha não atende à política de segurança.",
+        violations.map((message) => ({ location: "body", path: field, message })),
+      );
     }
   }
 
@@ -458,7 +462,7 @@ export class AuthService {
     if (!(await verifyPassword(currentPassword, user.passwordHash))) {
       throw errors.conflict("INVALID_CURRENT_PASSWORD", "A senha atual está incorreta.");
     }
-    this.assertPasswordPolicy(newPassword, { email: user.email, username: user.username });
+    this.assertPasswordPolicy(newPassword, { email: user.email, username: user.username }, "newPassword");
     const passwordHash = await hashPassword(newPassword, this.hashing);
     await this.db.update(users).set({ passwordHash, updatedAt: this.clock.now() }).where(eq(users.id, userId));
     await this.logoutAll(userId, currentSessionId);

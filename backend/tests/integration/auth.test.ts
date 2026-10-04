@@ -41,10 +41,10 @@ describe("autenticação (R02, R03, R04, R87)", () => {
         payload: { email: `${unique()}@x.com`, username: unique(), password: "fraca123" },
       });
       expect(response.statusCode).toBe(400);
-      expect(response.json().details.password).toEqual(
+      expect(response.json().details).toEqual(
         expect.arrayContaining([
-          "A senha deve conter pelo menos uma letra maiúscula.",
-          "A senha deve conter pelo menos um caractere especial.",
+          { location: "body", path: "password", message: "A senha deve conter pelo menos uma letra maiúscula." },
+          { location: "body", path: "password", message: "A senha deve conter pelo menos um caractere especial." },
         ]),
       );
     });

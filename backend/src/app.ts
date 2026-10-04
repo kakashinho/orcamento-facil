@@ -12,6 +12,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
+import { z } from "zod";
 import type { Container } from "./container.js";
 import { createAuthenticate } from "./http/auth.js";
 import { createErrorHandler } from "./http/error-handler.js";
@@ -31,6 +32,9 @@ import { transferRoutes } from "./modules/transfers/transfer.routes.js";
 import { userRoutes } from "./modules/users/user.routes.js";
 import { walletRoutes } from "./modules/wallets/wallet.routes.js";
 import { errors } from "./shared/errors.js";
+
+// Mensagens de validação padrão do Zod em português do Brasil.
+z.config(z.locales.ptBR());
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 /** Rotas de escrita liberadas durante a manutenção: entrar/sair e a própria administração. */

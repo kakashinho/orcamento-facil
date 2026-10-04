@@ -4,6 +4,7 @@ API em Node.js que atende o aplicativo Android (React Native) do Orçamento Fác
 
 | Para… | Veja |
 |---|---|
+| **Aprender: rodar, ver rotas, validação e estrutura** | [GUIA.md](GUIA.md) |
 | Usar a API (endpoints, formatos, exemplos) | [docs/api/README.md](docs/api/README.md) e o Swagger em `/docs` |
 | Entender a arquitetura e as decisões | [docs/architecture/implementation.md](docs/architecture/implementation.md) |
 | Ver como cada requisito foi atendido | [docs/requirements/sprint-1-implementation.md](docs/requirements/sprint-1-implementation.md) |
@@ -42,6 +43,7 @@ O primeiro usuário cujo e-mail esteja em `ADMIN_EMAILS` recebe o perfil de admi
 | Script | O que faz |
 |---|---|
 | `npm run dev` | API com recarga automática (tsx) |
+| `npm run routes` | Lista todas as rotas (método, caminho, se exige login, descrição) |
 | `npm run build` / `npm start` | Compila para `dist/` e executa |
 | `npm run typecheck` | Verificação de tipos |
 | `npm run test:unit` | Testes unitários (sem banco) |
