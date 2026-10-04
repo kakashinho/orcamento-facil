@@ -1,58 +1,29 @@
-import { sql } from "drizzle-orm";
-import {
-  pgTable,
-  uuid,
-  varchar,
-  integer,
-  timestamp,
-  customType,
-  index,
-  check,
-} from "drizzle-orm/pg-core";
-import { users } from "./auth.js";
+import { bigserial, index, pgTable, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { bytea } from "./types.js";
+import { users } from "./users.js";
 
-// Snapshot cifrado é persistido em BYTEA (contrato TARGET,
-// matriz CRYPTO / DECISION-006). node-postgres materializa BYTEA como Buffer,
-// que é um Uint8Array — tipado aqui como Uint8Array para não depender do global Buffer.
-const bytea = customType<{ data: Uint8Array }>({
-  dataType() {
-    return "bytea";
-  },
-});
-
-// Fatia History do TARGET ratificado (sprint-1-target-contract.md):
-// action_history — histórico de undo com snapshot autorizado.
-
+/**
+ * Histórico de ações desfazíveis (R49). O snapshot carrega o estado necessário para
+ * reverter a ação e pode conter valores financeiros, por isso é cifrado (R81).
+ * `seq` dá a ordem estrita das ações — timestamps podem empatar no mesmo milissegundo.
+ */
 export const actionHistory = pgTable(
   "action_history",
   {
-    id: uuid("id").primaryKey(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    seq: bigserial("seq", { mode: "number" }).notNull(),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     action: varchar("action", { length: 40 }).notNull(),
-    entityType: varchar("entity_type", { length: 40 }).notNull(),
-    entityId: uuid("entity_id").notNull(),
+    entityType: varchar("entity_type", { length: 20 }).notNull(),
+    entityId: uuid("entity_id"),
     snapshot: bytea("snapshot").notNull(),
-    snapshotKeyVersion: integer("snapshot_key_version").notNull(),
-    schemaVersion: integer("schema_version").notNull(),
     undoneAt: timestamp("undone_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    check(
-      "action_history_action_check",
-      sql`${table.action} in ('update', 'delete')`,
-    ),
-    index("action_history_user_id_created_at_idx").on(
-      table.userId,
-      table.createdAt.desc(),
-    ),
-    index("action_history_entity_type_entity_id_idx").on(
-      table.entityType,
-      table.entityId,
-    ),
+  (t) => [
+    index("action_history_user_seq_idx").on(t.userId, t.seq.desc()),
+    index("action_history_entity_idx").on(t.entityType, t.entityId),
   ],
 );

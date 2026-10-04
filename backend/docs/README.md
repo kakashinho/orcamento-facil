@@ -1,25 +1,19 @@
-# Backend — entrada atual de execução
+# Backend — documentação
 
-Esta é a documentação atual recebida em docs(1).zip, acrescida do primeiro lote de tarefas autorizado pelo responsável. Nenhum código foi implementado por esta entrega.
+## Estado atual (implementado)
 
-1. [TASKs do lote 1](tasks/README.md) — começar por TASK-001.
-2. [Protocolo de execução/revisão para modelos menores](tasks/execution-guide.md).
-3. [Mapa da Sprint 1](sprints/sprint-1-plan.md).
-4. [Estado real e contagens](state/project-state.md).
-5. [Baseline CURRENT, autoridade e scripts](state/execution-baseline.md).
-6. [13 decisões humanas atuais](state/approved-decisions.md).
-7. [Parâmetros que bloqueiam tarefas específicas](state/blockers.md).
-8. [Estratégia de testes](testing/strategy.md) e [índice API](api/README.md).
+A API da Sprint 1 está implementada e testada. Comece por aqui:
 
-## Documentação de referência
+1. [README do backend](../README.md): como rodar, configurar, testar e publicar.
+2. [Referência da API](api/README.md): convenções, endpoints e exemplos (Swagger completo em `/docs`).
+3. [Arquitetura implementada](architecture/implementation.md): módulos, modelo de dados, decisões e desempenho medido.
+4. [Requisitos × implementação](requirements/sprint-1-implementation.md): onde e como cada requisito foi atendido, e quais testes o comprovam.
+5. [Estado do projeto](state/project-state.md).
 
-- [Requisitos](requirements/README.md)
-- [Decisões](decisions/README.md)
-- [Domínio](domain/README.md)
-- [Banco](database/README.md)
-- [Arquitetura](architecture/overview.md)
-- [Padrões](standards/README.md)
+## Material de planejamento (histórico)
 
-PRIMARY preservadas em sources/ no pacote. As 13 decisões são ACCEPTED. Registros/auditorias anteriores que dizem PENDING são fotografia histórica; não desfazem a escolha humana atual. A baseline distingue compromissos atuais de propostas/examples/OPEN. Não utilizar um padrão antigo como aprovação de todos os parâmetros do TARGET.
+Os documentos abaixo foram produzidos na fase de planejamento: TASKs, decisões, contrato TARGET, domínio e padrões. Em 2026-10-03 o responsável definiu que **somente `sources/requisitos-1sprint.txt` é autoridade**; arquitetura, modelagem e esses documentos são sugestões. Eles foram considerados na implementação e servem de contexto, mas não descrevem o código atual quando divergem dele.
 
-Nove TASKs: 2 READY, 2 BACKLOG por dependência e 5 BLOCKED. Implementação, banco/schema/migrations e execução de funcionalidades permanecem intocados nesta preparação. Este lote não é backlog completo da Sprint nem entrega de sistema funcionando.
+- [TASKs do lote 1](tasks/README.md), [plano da Sprint](sprints/sprint-1-plan.md), [bloqueios](state/blockers.md)
+- [Decisões](decisions/README.md), [Domínio](domain/README.md), [Banco (contrato TARGET)](database/README.md)
+- [Arquitetura de referência](architecture/overview.md), [Padrões](standards/README.md), [Requisitos (análises)](requirements/README.md)

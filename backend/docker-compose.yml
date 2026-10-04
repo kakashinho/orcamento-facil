@@ -1,20 +1,27 @@
+# Ambiente de DESENVOLVIMENTO: API (recarga automática) + PostgreSQL + Nginx.
+# Os segredos abaixo são apenas para desenvolvimento local — nunca use em produção.
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev
     container_name: my-api
     environment:
       NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/myapi
+      PUBLIC_BASE_URL: http://localhost
+      TRUST_PROXY: "true"
+      JWT_SECRET: dev-only-jwt-secret-change-me-0123456789abcdef
+      DATA_ENCRYPTION_KEY: ZGV2LW9ubHktZW5jcnlwdGlvbi1rZXktMzItYnl0ZXM=
+      ADMIN_EMAILS: admin@orcamentofacil.local
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - .:/app
       - /app/node_modules
-    command: npm run dev
     expose:
       - "3000"
 

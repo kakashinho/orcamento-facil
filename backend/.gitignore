@@ -3,4 +3,4 @@ dist/
 .env
 playwright-report/
 test-results/
-drizzle/
+# As migrations em drizzle/ são oficiais e DEVEM ser versionadas.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withTestDatabase } from "./support/test-database";
+import { withTestDatabase } from "./support/test-database.js";
 
 describe("Integration — Database Isolation", () => {
   const testDatabaseUrl = process.env.TEST_DATABASE_URL;
