@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { suggestCategories } from "../../src/modules/categories/category-suggester.js";
-import { parseTransactionText } from "../../src/modules/transactions/transaction-text-parser.js";
+import { suggestCategories } from "../../src/modules/finance/services/category-suggester.js";
+import { parseTransactionText } from "../../src/modules/finance/services/transaction-text-parser.js";
 
 const predefined = [
   { id: "food", name: "Alimentação", systemKey: "food" },

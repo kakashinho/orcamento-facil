@@ -6,8 +6,8 @@ import {
   monthRange,
   monthsBetween,
   todayInTimeZone,
-} from "../../src/shared/dates.js";
-import { AppError } from "../../src/shared/errors.js";
+} from "../../src/shared/utils/dates.js";
+import { AppError } from "../../src/shared/errors/app-error.js";
 import {
   convertCents,
   fromCents,
@@ -15,7 +15,7 @@ import {
   isSupportedCurrency,
   normalizeRate,
   toCents,
-} from "../../src/shared/money.js";
+} from "../../src/shared/utils/money.js";
 
 describe("money", () => {
   it("converte decimais em centavos sem erro de ponto flutuante", () => {

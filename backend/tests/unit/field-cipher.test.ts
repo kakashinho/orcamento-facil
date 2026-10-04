@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { aad, FieldCipher } from "../../src/shared/crypto/field-cipher.js";
+import { aad, FieldCipher } from "../../src/infrastructure/crypto/field-cipher.js";
 
 const keyV1 = randomBytes(32);
 const keyV2 = randomBytes(32);

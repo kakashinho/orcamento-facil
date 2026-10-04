@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AccessTokenService, generateOpaqueToken, hashOpaqueToken } from "../../src/modules/auth/access-token.js";
-import { hashPassword, passwordPolicyViolations, verifyPassword } from "../../src/modules/auth/password.js";
+import { AccessTokenService, generateOpaqueToken, hashOpaqueToken } from "../../src/infrastructure/auth/access-token.js";
+import { hashPassword, verifyPassword } from "../../src/infrastructure/auth/password-hasher.js";
+import { passwordPolicyViolations } from "../../src/modules/auth/services/password-policy.js";
 import { MutableClock, TEST_JWT_SECRET } from "../helpers/test-config.js";
 
 const fastHashing = { costLog2: 10, parallelization: 1 };

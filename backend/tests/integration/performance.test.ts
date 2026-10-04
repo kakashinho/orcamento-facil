@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { transactions } from "../../src/db/schema.js";
-import { aad } from "../../src/shared/crypto/field-cipher.js";
+import { transactions } from "../../src/infrastructure/database/schema.js";
+import { aad } from "../../src/infrastructure/crypto/field-cipher.js";
 import { createTestApp, PREDEFINED, registerUser, type TestContext, type TestUser } from "./support/test-app.js";
 
 /**

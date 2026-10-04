@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 import type { InjectOptions, LightMyRequestResponse } from "fastify";
 import { buildApp } from "../../../src/app.js";
 import { type Container, createContainer } from "../../../src/container.js";
-import type { App } from "../../../src/http/types.js";
-import { MemoryMailer } from "../../../src/infra/mailer.js";
+import type { App } from "../../../src/infrastructure/http/types.js";
+import { MemoryMailer } from "../../../src/infrastructure/mail/mailer.js";
 import { FakeExchangeRateProvider, MutableClock, testConfig } from "../../helpers/test-config.js";
 
 export const PASSWORD = "Senha@Forte123";

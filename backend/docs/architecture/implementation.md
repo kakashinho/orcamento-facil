@@ -11,24 +11,38 @@ App Android (React Native)
         ▼
 Nginx (proxy, TLS)  ──►  Fastify (Node.js)
                             ├─ hooks globais: request-id, manutenção (R72), cabeçalhos de segurança
-                            ├─ validação/serialização Zod  ─►  OpenAPI em /docs (R88)
-                            ├─ módulos: auth · users · wallets · categories · tags · transactions
-                            │           transfers · history · exchange-rates · reports · system
-                            └─ serviços ─► Drizzle ─► PostgreSQL
-                                        └─► ExchangeRate-API (R29) · SMTP (R04)
+                            ├─ DTOs Zod (validação + resposta)  ─►  OpenAPI em /docs (R88)
+                            ├─ módulos: auth · finance · history · reports · system
+                            └─ route → controller → service → repository ─► Drizzle ─► PostgreSQL
+                                                         └─► ExchangeRate-API (R29) · SMTP (R04)
 ```
 
 ## Camadas
 
-| Camada | Onde | Responsabilidade |
-|---|---|---|
-| HTTP | `modules/*/*.routes.ts`, `http/` | Rotas, schemas Zod de entrada e saída, autenticação, mapeamento de erros. Sem regra de negócio |
-| Serviços | `modules/*/*.service.ts`, `*.queries.ts` | Regras de negócio, transações de banco, posse dos dados (todo acesso filtra por `user_id`) |
-| Domínio puro | `category-suggester.ts`, `transaction-text-parser.ts`, `shared/` | Funções sem I/O: dinheiro, datas, criptografia, sugestão, interpretação de texto |
-| Infraestrutura | `infra/`, `db/` | Logger, e-mail, registro de eventos, relógio, cliente e migrador do banco |
+Segue [docs/standards/03-layers-and-dependencies.md](../standards/03-layers-and-dependencies.md). Cada
+módulo de domínio tem as mesmas pastas:
 
-A composição é feita por injeção manual em `container.ts`: cada serviço recebe só o que usa. Nos testes, o
-container troca o relógio, o e-mail e o provedor de câmbio por versões controladas.
+| Camada | Pasta | Responsabilidade |
+|---|---|---|
+| Route | `modules/*/routes/` | Declara método, caminho, schema e controller. Sem lógica |
+| Controller | `modules/*/controllers/` | Lê o request já validado e o usuário autenticado, chama o service, escolhe o status HTTP |
+| DTOs | `modules/*/schemas/` | Schemas Zod de request e de response: validação, tipos TypeScript e documentação |
+| Service | `modules/*/services/` | Regras de negócio, transações de banco (`TransactionRunner`), posse dos dados. Sem SQL e sem Fastify |
+| Repository | `modules/*/repositories/` | Única camada com Drizzle. Cifra e decifra os valores financeiros (R81) |
+| Infraestrutura | `infrastructure/` | Conexão e unidade de transação, hook de autenticação, tratamento de erros, JWT, hash de senha, criptografia, logs, e-mail, cliente de câmbio |
+
+Comunicação entre módulos acontece pelos services públicos, nunca pelos repositories de outro módulo:
+
+- `reports` lê dados por `WalletService`, `TransactionService` e `TransferService`;
+- `finance` usa `UserService` (auth) para moeda principal e fuso;
+- o cadastro (auth) cria a carteira padrão por um callback injetado, sem conhecer o finance;
+- as reversões do "desfazer" são handlers registrados pelo finance no `UndoService` (history).
+
+[tests/unit/architecture.test.ts](../../tests/unit/architecture.test.ts) verifica essas regras
+automaticamente.
+
+A composição é feita por injeção manual em `container.ts`: repositories → services → controllers. Nos
+testes, o container troca o relógio, o e-mail e o provedor de câmbio por versões controladas.
 
 ## Modelo de dados
 

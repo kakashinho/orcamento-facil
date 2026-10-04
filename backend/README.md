@@ -49,7 +49,7 @@ O primeiro usuário cujo e-mail esteja em `ADMIN_EMAILS` recebe o perfil de admi
 | `npm run test:unit` | Testes unitários (sem banco) |
 | `npm run db:test:up` | Sobe o PostgreSQL isolado de testes (porta 5433) |
 | `npm run test:integration` | Testes de integração contra o banco de testes (recria o schema a cada execução) |
-| `npm run db:generate` | Gera nova migration a partir de `src/db/schema/*` |
+| `npm run db:generate` | Gera nova migration a partir de `src/infrastructure/database/schema/*` |
 | `npm run db:migrate` / `db:migrate:prod` | Aplica migrations pendentes (dev / build compilado) |
 
 Fluxo de testes completo:
@@ -73,17 +73,22 @@ migrations pendentes e sobe a API (`HEALTHCHECK` em `/health`). Exigências de p
 
 ## Estrutura
 
+Monólito modular em camadas, conforme `docs/standards/` (explicação completa no [GUIA.md](GUIA.md)):
+
 ```text
 src/
-├── server.ts / app.ts / container.ts   entrada, montagem do Fastify, injeção de dependências
+├── server.ts · app.ts · container.ts   entrada, montagem do Fastify, injeção de dependências
 ├── config/env.ts                       variáveis de ambiente validadas
-├── db/                                 schema Drizzle, cliente e migrador
-├── http/                               autenticação, erros, schemas comuns
-├── infra/                              logger, e-mail, eventos, relógio
-├── modules/                            um diretório por domínio (rotas + serviços)
-│   ├── auth  users  wallets  categories  tags  transactions
-│   └── transfers  history  exchange-rates  reports  system
-└── shared/                             criptografia, dinheiro, datas, paginação
+├── modules/                            um módulo por domínio
+│   ├── auth/  finance/  history/  reports/  system/
+│   │   ├── routes/         endpoints
+│   │   ├── controllers/    request validado → service → response
+│   │   ├── schemas/        DTOs de request e response (Zod)
+│   │   ├── services/       regras de negócio
+│   │   ├── repositories/   acesso ao banco (Drizzle)
+│   │   └── types/
+├── infrastructure/                     banco, HTTP (auth hook, erros), JWT/senha, criptografia, logs, e-mail, câmbio
+└── shared/                             erros e utilitários (dinheiro, datas, paginação)
 drizzle/                                migrations oficiais (versionadas)
-tests/unit · tests/integration          testes
+tests/unit · tests/integration          testes (inclui regras de arquitetura)
 ```

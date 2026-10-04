@@ -1,7 +1,7 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { aad } from "../../src/shared/crypto/field-cipher.js";
-import { todayInTimeZone } from "../../src/shared/dates.js";
+import { aad } from "../../src/infrastructure/crypto/field-cipher.js";
+import { todayInTimeZone } from "../../src/shared/utils/dates.js";
 import { TEST_DATABASE_URL } from "../helpers/test-config.js";
 import {
   createTestApp,

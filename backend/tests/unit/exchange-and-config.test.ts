@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { EventLogger } from "../../src/infra/event-log.js";
-import { redactUrl } from "../../src/infra/logger.js";
-import { ExchangeRateService } from "../../src/modules/exchange-rates/exchange-rate.service.js";
-import { AppError } from "../../src/shared/errors.js";
+import type { EventLogger } from "../../src/infrastructure/logging/event-logger.js";
+import { redactUrl } from "../../src/infrastructure/logging/logger.js";
+import { ExchangeRateService } from "../../src/modules/finance/services/exchange-rate.service.js";
+import { AppError } from "../../src/shared/errors/app-error.js";
 import { FakeExchangeRateProvider, MutableClock, testConfig } from "../helpers/test-config.js";
 
 const silentLog = { record: vi.fn() } as unknown as EventLogger;

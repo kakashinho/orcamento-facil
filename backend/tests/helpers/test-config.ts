@@ -1,6 +1,6 @@
 import { type AppConfig, loadConfig } from "../../src/config/env.js";
-import type { Clock } from "../../src/infra/clock.js";
-import type { ExchangeRateProvider, RateTable } from "../../src/modules/exchange-rates/exchange-rate.provider.js";
+import type { Clock } from "../../src/infrastructure/clock.js";
+import type { ExchangeRateProvider, RateTable } from "../../src/infrastructure/exchange-rates/exchange-rate.provider.js";
 
 export const TEST_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 export const TEST_JWT_SECRET = "test-jwt-secret-with-more-than-32-characters";

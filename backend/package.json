@@ -18,8 +18,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts",
-    "db:migrate:prod": "node dist/db/migrate.js",
+    "db:migrate": "tsx src/infrastructure/database/migrate.ts",
+    "db:migrate:prod": "node dist/infrastructure/database/migrate.js",
     "db:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f docker-compose.test.yml down -v"
   },

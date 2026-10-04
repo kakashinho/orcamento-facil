@@ -14,24 +14,23 @@ import {
 } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { Container } from "./container.js";
-import { createAuthenticate } from "./http/auth.js";
-import { createErrorHandler } from "./http/error-handler.js";
-import type { RouteDeps } from "./http/route-deps.js";
-import type { App } from "./http/types.js";
-import { authRoutes } from "./modules/auth/auth.routes.js";
-import { resetPasswordPage } from "./modules/auth/reset-password.page.js";
-import { categoryRoutes } from "./modules/categories/category.routes.js";
-import { exchangeRateRoutes } from "./modules/exchange-rates/exchange-rate.routes.js";
-import { historyRoutes } from "./modules/history/history.routes.js";
-import { reportRoutes } from "./modules/reports/report.routes.js";
-import { DEFAULT_MAINTENANCE_MESSAGE } from "./modules/system/maintenance.service.js";
-import { API_VERSION, adminRoutes, healthRoutes, systemRoutes } from "./modules/system/system.routes.js";
-import { tagRoutes } from "./modules/tags/tag.routes.js";
-import { transactionRoutes } from "./modules/transactions/transaction.routes.js";
-import { transferRoutes } from "./modules/transfers/transfer.routes.js";
-import { userRoutes } from "./modules/users/user.routes.js";
-import { walletRoutes } from "./modules/wallets/wallet.routes.js";
-import { errors } from "./shared/errors.js";
+import { createErrorHandler } from "./infrastructure/http/error-handler.js";
+import type { App } from "./infrastructure/http/types.js";
+import { authRoutes } from "./modules/auth/routes/auth.routes.js";
+import { resetPasswordRoutes } from "./modules/auth/routes/reset-password.routes.js";
+import { userRoutes } from "./modules/auth/routes/user.routes.js";
+import { categoryRoutes } from "./modules/finance/routes/category.routes.js";
+import { exchangeRateRoutes } from "./modules/finance/routes/exchange-rate.routes.js";
+import { tagRoutes } from "./modules/finance/routes/tag.routes.js";
+import { transactionRoutes } from "./modules/finance/routes/transaction.routes.js";
+import { transferRoutes } from "./modules/finance/routes/transfer.routes.js";
+import { walletRoutes } from "./modules/finance/routes/wallet.routes.js";
+import { historyRoutes } from "./modules/history/routes/history.routes.js";
+import { reportRoutes } from "./modules/reports/routes/report.routes.js";
+import { adminRoutes } from "./modules/system/routes/admin.routes.js";
+import { systemRoutes } from "./modules/system/routes/system.routes.js";
+import { API_VERSION, DEFAULT_MAINTENANCE_MESSAGE } from "./modules/system/types/system.types.js";
+import { errors } from "./shared/errors/app-error.js";
 
 // Mensagens de validação padrão do Zod em português do Brasil.
 z.config(z.locales.ptBR());
@@ -44,8 +43,9 @@ function isMaintenanceExempt(path: string): boolean {
   return MAINTENANCE_EXEMPT.has(path) || path.startsWith("/api/admin/") || !(path.startsWith("/api/") || path === "/reset-password");
 }
 
+/** Monta o Fastify: plugins, hooks globais, tratamento de erros e registro das rotas dos módulos. */
 export async function buildApp(container: Container): Promise<App> {
-  const { config } = container;
+  const { config, controllers, guards } = container;
 
   const app = Fastify({
     loggerInstance: container.logger as FastifyBaseLogger,
@@ -57,6 +57,7 @@ export async function buildApp(container: Container): Promise<App> {
     },
   }).withTypeProvider<ZodTypeProvider>();
 
+  // Validação (DTOs de entrada) e serialização (DTOs de resposta) pelos schemas Zod.
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.decorateRequest("auth", null);
@@ -78,7 +79,7 @@ export async function buildApp(container: Container): Promise<App> {
 
   await app.register(rateLimit, { global: false });
 
-  // R88: documentação da API gerada a partir dos próprios schemas de validação.
+  // R88: documentação da API gerada a partir dos próprios schemas (DTOs).
   await app.register(swagger, {
     openapi: {
       openapi: "3.0.3",
@@ -113,7 +114,7 @@ export async function buildApp(container: Container): Promise<App> {
     if (!MUTATING_METHODS.has(request.method)) return;
     const path = request.url.split("?")[0] ?? "";
     if (isMaintenanceExempt(path)) return;
-    const state = await container.maintenance.getState();
+    const state = await container.services.maintenance.getState();
     if (state.enabled) {
       throw errors.maintenance(state.message ?? DEFAULT_MAINTENANCE_MESSAGE);
     }
@@ -128,25 +129,20 @@ export async function buildApp(container: Container): Promise<App> {
     }),
   );
 
-  const deps: RouteDeps = {
-    container,
-    authenticate: createAuthenticate(container.accessTokens, container.auth),
-  };
-
-  await app.register(healthRoutes(deps));
-  await app.register(authRoutes(deps), { prefix: "/api/auth" });
-  await app.register(userRoutes(deps), { prefix: "/api/users" });
-  await app.register(walletRoutes(deps), { prefix: "/api/wallets" });
-  await app.register(categoryRoutes(deps), { prefix: "/api/categories" });
-  await app.register(tagRoutes(deps), { prefix: "/api/tags" });
-  await app.register(transactionRoutes(deps), { prefix: "/api/transactions" });
-  await app.register(transferRoutes(deps), { prefix: "/api/transfers" });
-  await app.register(historyRoutes(deps), { prefix: "/api/history" });
-  await app.register(exchangeRateRoutes(deps), { prefix: "/api/exchange-rates" });
-  await app.register(reportRoutes(deps), { prefix: "/api/reports" });
-  await app.register(systemRoutes(deps), { prefix: "/api/system" });
-  await app.register(adminRoutes(deps), { prefix: "/api/admin" });
-  await app.register(resetPasswordPage(deps));
+  // Rotas de cada módulo: route → controller → service → repository.
+  await app.register(systemRoutes(controllers.system));
+  await app.register(authRoutes(controllers.auth, guards), { prefix: "/api/auth" });
+  await app.register(userRoutes(controllers.user, guards), { prefix: "/api/users" });
+  await app.register(walletRoutes(controllers.wallet, guards), { prefix: "/api/wallets" });
+  await app.register(categoryRoutes(controllers.category, guards), { prefix: "/api/categories" });
+  await app.register(tagRoutes(controllers.tag, guards), { prefix: "/api/tags" });
+  await app.register(transactionRoutes(controllers.transaction, guards), { prefix: "/api/transactions" });
+  await app.register(transferRoutes(controllers.transfer, guards), { prefix: "/api/transfers" });
+  await app.register(exchangeRateRoutes(controllers.exchangeRate, guards), { prefix: "/api/exchange-rates" });
+  await app.register(historyRoutes(controllers.history, guards), { prefix: "/api/history" });
+  await app.register(reportRoutes(controllers.report, guards), { prefix: "/api/reports" });
+  await app.register(adminRoutes(controllers.admin, guards), { prefix: "/api/admin" });
+  await app.register(resetPasswordRoutes(controllers.resetPassword));
 
   app.addHook("onClose", async () => {
     await container.eventLog.flush();

@@ -1,6 +1,6 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runMigrations } from "../../src/db/migrate.js";
+import { runMigrations } from "../../src/infrastructure/database/migrate.js";
 import { TEST_DATABASE_URL } from "../helpers/test-config.js";
 
 describe("migrations oficiais", () => {

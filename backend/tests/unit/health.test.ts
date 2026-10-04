@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/app.js";
 import { createContainer } from "../../src/container.js";
-import type { App } from "../../src/http/types.js";
-import { MemoryMailer } from "../../src/infra/mailer.js";
+import type { App } from "../../src/infrastructure/http/types.js";
+import { MemoryMailer } from "../../src/infrastructure/mail/mailer.js";
 import { FakeExchangeRateProvider, testConfig } from "../helpers/test-config.js";
 
 // Sem banco: o pool do pg só conecta na primeira consulta, e estas rotas não consultam.

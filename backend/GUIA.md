@@ -5,8 +5,8 @@ Este guia ensina, em ordem:
 1. [Como rodar o projeto](#1-como-rodar-o-projeto)
 2. [Como ver as rotas](#2-como-ver-as-rotas)
 3. [DTOs e validação: onde estão e como funcionam](#3-dtos-e-validação)
-4. [A estrutura do código e o caminho de uma requisição](#4-a-estrutura-do-código)
-5. [Essa estrutura é comum? Comparação com o padrão documentado](#5-essa-estrutura-é-comum)
+4. [A estrutura em camadas e o caminho de uma requisição](#4-a-estrutura-em-camadas)
+5. [Essa estrutura é comum?](#5-essa-estrutura-é-comum)
 
 Todos os comandos rodam dentro da pasta `backend/`.
 
@@ -50,7 +50,7 @@ comandos indicados dentro do arquivo.
    { "email": "voce@exemplo.com", "username": "voce", "password": "Senha@Forte123" }
    ```
 2. Copie o `accessToken` da resposta.
-3. Clique no botão **Authorize** (cadeado no topo), cole o token e confirme.
+3. Clique em **Authorize** (cadeado no topo), cole o token e confirme.
 4. Agora as rotas com cadeado funcionam. Teste **GET /api/wallets** (sua carteira padrão já existe).
 
 O access token vale 15 minutos. Quando expirar, faça login de novo ou use **POST /api/auth/refresh** com o `refreshToken`.
@@ -59,8 +59,8 @@ O access token vale 15 minutos. Quando expirar, faça login de novo ou use **POS
 
 ```bash
 npm run db:test:up          # 1ª vez: sobe um PostgreSQL só para testes (porta 5433)
-npm run test:unit           # testes sem banco (rápidos)
-npm run test:integration    # testes contra o banco de teste (recria as tabelas a cada execução)
+npm run test:unit           # testes sem banco, inclusive as regras de arquitetura
+npm run test:integration    # testes da API contra o banco de teste (recria as tabelas a cada execução)
 npm run db:test:down        # desliga o banco de teste quando terminar
 ```
 
@@ -72,7 +72,7 @@ npm run db:test:down        # desliga o banco de teste quando terminar
 | `npm run routes` | Lista todas as rotas no terminal |
 | `npm run typecheck` | Procura erros de tipo no código |
 | `npm run build` / `npm start` | Compila para `dist/` e roda a versão compilada |
-| `npm run db:generate` | Gera uma migration nova depois de mudar `src/db/schema/` |
+| `npm run db:generate` | Gera uma migration nova depois de mudar `src/infrastructure/database/schema/` |
 | `npm run db:migrate` | Aplica migrations pendentes no banco do `.env` |
 
 Para olhar o banco direto:
@@ -86,12 +86,11 @@ Para olhar o banco direto:
 
 ### 2.1 Documentação interativa (Swagger) — `/docs`
 
-Com a API rodando, abra `http://localhost:3000/docs` (ou `http://localhost/docs` no Docker). Ali estão
-**todas** as rotas agrupadas por assunto, com os campos aceitos, as respostas e o botão **Try it out** para
-testar. A especificação em JSON (para importar no Postman/Insomnia) fica em `/docs/json`.
+Com a API rodando, abra `http://localhost:3000/docs`. Ali estão **todas** as rotas agrupadas por assunto,
+com os campos aceitos, as respostas e o botão **Try it out**. A especificação em JSON (para importar no
+Postman/Insomnia) fica em `/docs/json`.
 
-Essa documentação é **gerada a partir do próprio código de validação** (seção 3). Por isso ela nunca fica
-desatualizada: se a regra de um campo mudar no código, o Swagger muda junto.
+Ela é **gerada a partir dos próprios DTOs** (seção 3), então nunca fica desatualizada.
 
 ### 2.2 No terminal — `npm run routes`
 
@@ -111,51 +110,41 @@ Transações
 🔒 = exige header Authorization: Bearer <accessToken>
 ```
 
-São 57 rotas.
+São 55 rotas.
 
 ### 2.3 No código
 
-Cada módulo tem um arquivo `*.routes.ts`, e o [src/app.ts](src/app.ts) registra cada um com um prefixo:
+Cada recurso tem um arquivo em `routes/`, e o [src/app.ts](src/app.ts) registra cada um com um prefixo:
 
-| Prefixo | Arquivo |
+| Prefixo | Arquivo de rotas |
 |---|---|
-| `/api/auth` | [src/modules/auth/auth.routes.ts](src/modules/auth/auth.routes.ts) |
-| `/api/users` | [src/modules/users/user.routes.ts](src/modules/users/user.routes.ts) |
-| `/api/wallets` | [src/modules/wallets/wallet.routes.ts](src/modules/wallets/wallet.routes.ts) |
-| `/api/categories` | [src/modules/categories/category.routes.ts](src/modules/categories/category.routes.ts) |
-| `/api/tags` | [src/modules/tags/tag.routes.ts](src/modules/tags/tag.routes.ts) |
-| `/api/transactions` | [src/modules/transactions/transaction.routes.ts](src/modules/transactions/transaction.routes.ts) |
-| `/api/transfers` | [src/modules/transfers/transfer.routes.ts](src/modules/transfers/transfer.routes.ts) |
-| `/api/history` | [src/modules/history/history.routes.ts](src/modules/history/history.routes.ts) |
-| `/api/exchange-rates` | [src/modules/exchange-rates/exchange-rate.routes.ts](src/modules/exchange-rates/exchange-rate.routes.ts) |
-| `/api/reports` | [src/modules/reports/report.routes.ts](src/modules/reports/report.routes.ts) |
-| `/api/system`, `/api/admin`, `/health` | [src/modules/system/system.routes.ts](src/modules/system/system.routes.ts) |
+| `/api/auth` | [modules/auth/routes/auth.routes.ts](src/modules/auth/routes/auth.routes.ts) |
+| `/api/users` | [modules/auth/routes/user.routes.ts](src/modules/auth/routes/user.routes.ts) |
+| `/api/wallets` | [modules/finance/routes/wallet.routes.ts](src/modules/finance/routes/wallet.routes.ts) |
+| `/api/categories` | [modules/finance/routes/category.routes.ts](src/modules/finance/routes/category.routes.ts) |
+| `/api/tags` | [modules/finance/routes/tag.routes.ts](src/modules/finance/routes/tag.routes.ts) |
+| `/api/transactions` | [modules/finance/routes/transaction.routes.ts](src/modules/finance/routes/transaction.routes.ts) |
+| `/api/transfers` | [modules/finance/routes/transfer.routes.ts](src/modules/finance/routes/transfer.routes.ts) |
+| `/api/exchange-rates` | [modules/finance/routes/exchange-rate.routes.ts](src/modules/finance/routes/exchange-rate.routes.ts) |
+| `/api/history` | [modules/history/routes/history.routes.ts](src/modules/history/routes/history.routes.ts) |
+| `/api/reports` | [modules/reports/routes/report.routes.ts](src/modules/reports/routes/report.routes.ts) |
+| `/api/admin` | [modules/system/routes/admin.routes.ts](src/modules/system/routes/admin.routes.ts) |
+| `/health`, `/api/system/status` | [modules/system/routes/system.routes.ts](src/modules/system/routes/system.routes.ts) |
 
-Exemplo de leitura de uma rota (`POST /api/transactions`, simplificado):
+Um arquivo de rotas só **declara** os endpoints. Cada linha diz o método, o caminho, qual schema valida e
+qual método do controller atende:
 
 ```ts
-export function transactionRoutes(deps: RouteDeps): FastifyPluginAsyncZod {
+// modules/finance/routes/transaction.routes.ts
+export function transactionRoutes(controller: TransactionController, guards: HttpGuards): FastifyPluginAsyncZod {
   return async (app) => {
-    app.addHook("onRequest", deps.authenticate);   // ① toda rota deste arquivo exige login
+    app.addHook("onRequest", guards.authenticate);          // todas exigem login
 
-    app.post("/", {                                // ② método + caminho (prefixo /api/transactions)
-      schema: {
-        summary: "Registrar transação (R06)",      // ③ texto que aparece no Swagger
-        body: z.object({                           // ④ VALIDAÇÃO do corpo — o DTO de entrada
-          type: z.enum(["income", "expense"]),
-          amount: positiveAmount,
-          description: z.string().min(1).max(200),
-          date: isoDate.optional(),
-          walletId: z.uuid().optional(),
-          tags: z.array(z.string()).max(10).optional(),
-        }),
-        response: { 201: transactionResponse },    // ⑤ DTO de saída
-      },
-    },
-    async (request, reply) => {                    // ⑥ handler: só roda se ①–④ passaram
-      const result = await transactions.create(requireAuth(request).userId, request.body);
-      return reply.status(201).send(result);       // ⑦ status HTTP + resposta
-    });
+    app.get("/", { schema: schemas.list }, controller.list);
+    app.post("/", { schema: schemas.create }, controller.create);
+    app.patch("/:id", { schema: schemas.update }, controller.update);
+    app.delete("/:id", { schema: schemas.remove }, controller.remove);
+    // ...
   };
 }
 ```
@@ -164,36 +153,61 @@ export function transactionRoutes(deps: RouteDeps): FastifyPluginAsyncZod {
 
 ## 3. DTOs e validação
 
-### 3.1 O que é DTO neste projeto
+### 3.1 Onde ficam os DTOs
 
-DTO (*Data Transfer Object*) é o formato dos dados que **entram** e **saem** da API. Aqui eles são
-definidos com a biblioteca **Zod**, e o mesmo schema cumpre três papéis ao mesmo tempo:
+Na pasta `schemas/` de cada módulo. Cada arquivo tem três blocos, sempre na mesma ordem:
+
+```ts
+// modules/finance/schemas/transaction.schema.ts
+
+// ---------- Request DTOs ----------
+export const createTransactionRequestSchema = z.object({
+  type: z.enum(["income", "expense"]),
+  amount: positiveAmount,                 // > 0, até 2 casas decimais
+  description: z.string().min(1).max(200),
+  date: isoDate.optional(),               // AAAA-MM-DD que existe no calendário
+  walletId: z.uuid().optional(),
+  categoryId: z.uuid().nullable().optional(),
+  tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+});
+export type CreateTransactionRequestDto = z.infer<typeof createTransactionRequestSchema>;
+
+// ---------- Response DTOs ----------
+export const transactionResponseSchema = z.object({ id: z.string(), amount: z.number(), /* ... */ });
+export type TransactionResponseDto = z.infer<typeof transactionResponseSchema>;
+
+// ---------- Schemas das rotas (validação + documentação) ----------
+export const transactionRouteSchemas = {
+  create: {
+    summary: "Registrar transação (R06)",
+    body: createTransactionRequestSchema,          // valida a entrada
+    response: { 201: transactionResponseSchema },  // valida e filtra a saída
+  },
+  // ...
+};
+```
+
+Cada schema Zod cumpre três papéis ao mesmo tempo:
 
 | Papel | Como acontece |
 |---|---|
-| **Valida em tempo de execução** | O plugin `fastify-type-provider-zod` confere o `body`, a `querystring` e os `params` **antes** de o handler rodar |
-| **Dá o tipo TypeScript** | `request.body` já vem tipado com os campos do schema; não existe interface duplicada para manter |
+| **Valida em tempo de execução** | O Fastify confere `body`, `querystring`, `params` e `headers` **antes** de chamar o controller |
+| **Gera o tipo TypeScript** | `CreateTransactionRequestDto` vem do schema (`z.infer`); não há interface duplicada para manter |
 | **Documenta** | O Swagger em `/docs` é gerado desses schemas |
 
-| DTO | Onde fica | Exemplo |
-|---|---|---|
-| Entrada (body, query, params) | `schema.body`, `schema.querystring`, `schema.params` em cada `*.routes.ts` | corpo do `POST /api/transactions` acima |
-| Saída (resposta) | `schema.response` + funções de mapeamento | `transactionResponse` em [transaction.routes.ts](src/modules/transactions/transaction.routes.ts); `toUserDto` em [user.dto.ts](src/modules/users/user.dto.ts); `WalletService.toDto` |
-| Contrato rota → service | interfaces no service | `CreateTransactionInput` em [transaction.service.ts](src/modules/transactions/transaction.service.ts) |
-
-O DTO de saída também **protege dados**: a resposta passa pelo schema antes de ser enviada, e campos
-que não estão nele são removidos. Por isso `passwordHash` nunca sai da API, mesmo que alguém o coloque
-no objeto por engano.
+O **DTO de resposta também protege dados**: a resposta passa pelo schema antes de sair, e campos que não
+estão nele são removidos. Por isso o hash da senha nunca sai da API, mesmo que alguém o coloque no objeto
+por engano.
 
 ### 3.2 As três camadas de validação
 
 | Camada | Onde | O que verifica | Resposta |
 |---|---|---|---|
-| **1. Formato** (schema Zod) | `*.routes.ts` e [src/http/schemas.ts](src/http/schemas.ts) | Campo obrigatório, tipo, tamanho, data válida, moeda ISO, UUID, valor > 0 com até 2 casas | `400 VALIDATION_ERROR` |
-| **2. Regra de negócio** (service) | `*.service.ts` | Carteira existe e é sua, nome duplicado, senha forte, moeda suportada, carteira com movimentos não pode ser excluída | `4xx` com código específico (`INVALID_WALLET`, `WALLET_NAME_TAKEN`…) |
-| **3. Banco** (constraints) | [src/db/schema/](src/db/schema/) → migrations | Unicidade, chave estrangeira, CHECK | `409 CONFLICT` / `400` |
+| **1. Formato** (DTO) | `schemas/` e [infrastructure/http/common-schemas.ts](src/infrastructure/http/common-schemas.ts) | Campo obrigatório, tipo, tamanho, data válida, moeda ISO, UUID, valor > 0 | `400 VALIDATION_ERROR` |
+| **2. Regra de negócio** | `services/` | Carteira existe e é sua, nome duplicado, senha forte, moeda suportada | `4xx` com código específico (`INVALID_WALLET`, `WALLET_NAME_TAKEN`…) |
+| **3. Banco** (constraints) | [infrastructure/database/schema/](src/infrastructure/database/schema/) → migrations | Unicidade, chave estrangeira, CHECK | `409` / `400` |
 
-A camada 1 só olha o formato; ela nunca consulta o banco. "Esse e-mail já existe?" é regra de negócio
+A camada 1 só olha o formato e nunca consulta o banco. "Esse e-mail já existe?" é regra de negócio
 (camada 2), com a camada 3 como última garantia.
 
 ### 3.3 Veja acontecendo
@@ -216,164 +230,145 @@ HTTP 400
 }
 ```
 
-O erro lista **todos** os campos com problema de uma vez, para o app marcar cada um no formulário.
-O handler nem chegou a rodar.
+O erro lista **todos** os campos com problema de uma vez, e o controller nem chega a rodar.
 
-Já uma regra de negócio (carteira que não existe ou é de outro usuário):
+Uma regra de negócio (carteira que não existe ou é de outro usuário):
 
 ```json
 HTTP 422
 { "statusCode": 422, "code": "INVALID_WALLET", "message": "Carteira inexistente." }
 ```
 
-Todo erro da API tem esse formato `{ statusCode, code, message, details? }`. Quem garante isso é
-[src/http/error-handler.ts](src/http/error-handler.ts). O app deve usar o `code` para decidir o que fazer
-e mostrar a `message` ao usuário.
-
-### 3.4 Validadores reutilizáveis
-
-Regras usadas em vários lugares ficam em [src/http/schemas.ts](src/http/schemas.ts): `isoDate` (data
-AAAA-MM-DD que existe no calendário), `isoMonth`, `currencyCode` (ISO 4217), `positiveAmount`,
-`idParams` (`:id` precisa ser UUID), `limitQuery` (paginação 1–100). Uma regra nova de formato entra
-nesse arquivo e é importada pelas rotas.
+Todo erro tem o formato `{ statusCode, code, message, details? }`, garantido por
+[infrastructure/http/error-handler.ts](src/infrastructure/http/error-handler.ts).
 
 ---
 
-## 4. A estrutura do código
+## 4. A estrutura em camadas
 
 ### 4.1 Mapa das pastas
 
 ```text
-backend/
-├── src/
-│   ├── server.ts          ponto de entrada: lê a config, monta tudo e sobe o servidor
-│   ├── app.ts             monta o Fastify: plugins (compressão, Swagger, CORS), hooks globais, registra os módulos
-│   ├── container.ts       cria cada serviço uma vez e entrega para quem precisa (injeção de dependências)
-│   ├── config/env.ts      lê e valida as variáveis de ambiente (falha na subida se faltar algo)
-│   │
-│   ├── modules/           ⭐ uma pasta por funcionalidade — aqui fica o "negócio"
-│   │   ├── auth/            cadastro, login, tokens, recuperação de senha
-│   │   ├── users/           perfil do usuário
-│   │   ├── wallets/         carteiras e saldo
-│   │   ├── categories/      categorias e sugestão de categoria
-│   │   ├── tags/            tags
-│   │   ├── transactions/    transações: comandos, consultas, interpretação de voz
-│   │   ├── transfers/       transferências entre carteiras
-│   │   ├── history/         histórico de ações e "desfazer"
-│   │   ├── exchange-rates/  cotações de câmbio
-│   │   ├── reports/         extrato, PDF, fluxo de caixa, gráficos
-│   │   └── system/          saúde, status, manutenção, logs administrativos
-│   │
-│   ├── http/              peças HTTP comuns: autenticação, tratamento de erros, validadores reutilizáveis
-│   ├── db/                tabelas (schema Drizzle), conexão com o banco, aplicação das migrations
-│   ├── infra/             serviços técnicos: logger, e-mail, registro de eventos, relógio
-│   └── shared/            utilitários sem regra de negócio: criptografia, dinheiro, datas, paginação
+src/
+├── server.ts          ponto de entrada: lê a config, monta tudo e sobe o servidor
+├── app.ts             monta o Fastify: plugins, hooks globais e registro das rotas
+├── container.ts       cria repositories → services → controllers e liga uns aos outros
+├── config/env.ts      lê e valida as variáveis de ambiente
 │
-├── drizzle/               migrations SQL oficiais (histórico das mudanças do banco)
-├── tests/unit/            testes de funções puras (sem banco)
-├── tests/integration/     testes da API contra um PostgreSQL real
-└── scripts/               utilitários de desenvolvimento (npm run routes)
+├── modules/                       ⭐ um módulo por domínio
+│   ├── auth/          cadastro, login, sessão, recuperação de senha, perfil
+│   ├── finance/       carteiras, categorias, tags, transações, transferências, câmbio
+│   ├── history/       histórico de ações e "desfazer"
+│   ├── reports/       extrato, PDF, fluxo de caixa, gráficos
+│   └── system/        saúde, status, manutenção, logs administrativos
+│
+│   cada módulo tem as mesmas pastas:
+│   ├── routes/        declaram os endpoints (caminho + schema + controller)
+│   ├── controllers/   recebem o request validado, chamam o service, devolvem o response
+│   ├── schemas/       DTOs de request e de response (validação com Zod)
+│   ├── services/      regras de negócio — sem SQL e sem Fastify
+│   ├── repositories/  única camada que acessa o banco (Drizzle)
+│   └── types/         tipos do domínio
+│
+├── infrastructure/    peças técnicas usadas pelos módulos
+│   ├── database/      conexão, transação, base dos repositories, tabelas e migrator
+│   ├── http/          autenticação (hook), tratamento de erros, validadores comuns
+│   ├── auth/          JWT e hash de senha
+│   ├── crypto/        criptografia dos valores financeiros (AES-256-GCM)
+│   ├── logging/       logger e registro de eventos
+│   ├── mail/          envio de e-mail
+│   └── exchange-rates/ cliente da API de câmbio
+│
+└── shared/            utilitários sem regra de negócio: erros, dinheiro, datas, paginação
 ```
 
-Dentro de cada módulo, os arquivos seguem o mesmo padrão de nomes:
+O módulo `reports` não tem `repositories/`: ele só **lê dados de outros módulos**, e pela regra da
+arquitetura faz isso pelos services públicos deles, nunca acessando as tabelas diretamente.
 
-| Arquivo | Papel | Exemplo |
+### 4.2 O que cada camada pode e não pode fazer
+
+| Camada | Pode | Não pode |
 |---|---|---|
-| `*.routes.ts` | Endpoints HTTP: caminho, validação (DTOs) e o handler que chama o service | `transaction.routes.ts` |
-| `*.service.ts` | Regras de negócio e gravação no banco | `transaction.service.ts` |
-| `*.queries.ts` | Consultas de leitura mais complexas (filtros, paginação, ordenação) | `transaction.queries.ts` |
-| `*.types.ts` / `*.dto.ts` | Tipos e conversão para o formato de resposta | `transaction.types.ts`, `user.dto.ts` |
-| demais | Lógica pura específica do módulo, fácil de testar isolada | `category-suggester.ts`, `statement-pdf.ts` |
+| **Route** | Declarar o endpoint, ligar schema, autenticação e controller | Ter lógica, chamar service ou banco |
+| **Controller** | Ler `body`/`query`/`params` e o usuário logado, chamar o service, escolher o status HTTP | Acessar repository, ter regra de negócio |
+| **Service** | Aplicar regras, coordenar repositories, abrir transação de banco | Conhecer Fastify, escrever SQL |
+| **Repository** | Fazer queries com Drizzle, cifrar e decifrar valores | Ter regra de negócio, conhecer HTTP |
 
-### 4.2 O caminho de uma requisição
+Essas regras não são só documentação: [tests/unit/architecture.test.ts](tests/unit/architecture.test.ts)
+falha se algum arquivo "pular" uma camada.
+
+### 4.3 O caminho de uma requisição
 
 O que acontece quando o app envia `POST /api/transactions`:
 
 ```text
- App ──HTTP──► Fastify (app.ts)
-                 │ ① hooks globais: gera x-request-id; se o modo de manutenção estiver ativo, recusa (503)
-                 ▼
-               transaction.routes.ts
-                 │ ② authenticate (http/auth.ts): valida o JWT → request.auth.userId   (sem token: 401)
-                 │ ③ valida o body com o schema Zod                                    (inválido: 400)
-                 │ ④ handler chama o service
-                 ▼
-               transaction.service.ts
-                 │ ⑤ abre uma transação no banco
-                 │ ⑥ confere carteira e categoria (WalletService, CategoryService), cria as tags (TagService)
-                 │ ⑦ cifra o valor (shared/crypto), grava, atualiza o saldo (BalanceLedger)
-                 │ ⑧ registra a ação no histórico, para poder desfazer (ActionHistory)
-                 │ ⑨ commit; tudo ou nada
-                 ▼
-               transaction.queries.ts → monta o DTO de resposta
-                 ▼
- App ◄──201──  ⑩ resposta validada pelo schema de saída, comprimida (gzip/br) e enviada
+App ──HTTP──► app.ts
+               │ ① hooks globais: x-request-id; modo de manutenção ativo → 503
+               ▼
+             routes/transaction.routes.ts
+               │ ② guards.authenticate: valida o JWT → request.auth.userId          (sem token: 401)
+               │ ③ valida o body com createTransactionRequestSchema (DTO)          (inválido: 400)
+               ▼
+             controllers/transaction.controller.ts → create()
+               │ ④ pega userId e body e chama o service
+               ▼
+             services/transaction.service.ts → create()
+               │ ⑤ abre uma transação de banco (tudo ou nada)
+               │ ⑥ regras: a carteira é do usuário? a categoria pode ser usada? cria as tags
+               │ ⑦ grava pela TransactionRepository e atualiza o saldo pelo WalletService
+               │ ⑧ registra a ação no histórico, para poder desfazer (ActionHistoryService)
+               ▼
+             repositories/transaction.repository.ts
+               │ ⑨ cifra o valor e executa o INSERT com Drizzle
+               ▼
+             PostgreSQL
+               ▼
+             controller → reply.status(201).send(TransactionResponseDto)
+               │ ⑩ resposta validada pelo DTO de saída, comprimida e enviada
+ App ◄──201──
 
- Erro em qualquer ponto → http/error-handler.ts → { statusCode, code, message, details? }
+ Erro em qualquer ponto → infrastructure/http/error-handler.ts → { statusCode, code, message, details? }
 ```
 
-### 4.3 Injeção de dependências, sem mistério
+### 4.4 Como as peças se conectam (`container.ts`)
 
-Nenhum service cria as próprias dependências; ninguém escreve `new Pool()` ou `new WalletService()`
-dentro de outro service. O [src/container.ts](src/container.ts) cria tudo uma vez, na ordem certa, e
-passa pelo construtor:
+Ninguém cria as próprias dependências: nenhum service faz `new Repository()`. O
+[src/container.ts](src/container.ts) monta tudo uma vez, de baixo para cima:
 
 ```ts
-const wallets = new WalletService(db, cipher, clock, exchangeRates);
-const transactions = new TransactionService(db, cipher, clock, ledger, history, wallets, categories, tags, queries);
+const transactionRepository = new TransactionRepository(db, cipher);            // banco
+const transactions = new TransactionService({ transactions: transactionRepository, wallets, ... }); // regras
+const transactionController = new TransactionController(transactions);          // HTTP
+// app.ts: transactionRoutes(transactionController, guards)                      // endpoints
 ```
 
-Vantagem prática: nos testes, o container recebe um e-mail falso (guarda as mensagens em memória), um
-câmbio falso (taxas fixas) e um relógio controlável (avançar 15 minutos para testar o bloqueio de login).
-O código de produção não muda nada.
+Isso se chama **injeção de dependências**. Na prática, nos testes o container recebe um e-mail falso, um
+câmbio falso e um relógio controlável (para testar o bloqueio de login sem esperar 15 minutos), sem
+mudar nada no código de produção.
 
-### 4.4 Como adicionar um endpoint
+### 4.5 Como adicionar um endpoint
 
-1. **Rota:** no `*.routes.ts` do módulo, declare método, caminho, `schema` (body/query/params e response) e um handler curto que chama o service.
-2. **Regra:** escreva o método no `*.service.ts`. Ele recebe o `userId` e dados já validados, e lança `errors.xxx(...)` ([src/shared/errors.ts](src/shared/errors.ts)) quando uma regra impede a operação.
-3. **Banco (se precisar):** altere `src/db/schema/*.ts` → `npm run db:generate` → revise o SQL gerado em `drizzle/` → `npm run db:migrate`.
-4. **Teste:** acrescente um caso em `tests/integration/`.
-5. **Confira:** a rota aparece em `/docs` e em `npm run routes`.
+1. **DTO:** no `schemas/<recurso>.schema.ts`, crie o schema de request, o de response e a entrada em `<recurso>RouteSchemas`.
+2. **Repository** (se precisar de uma query nova): método em `repositories/<recurso>.repository.ts`.
+3. **Service:** a regra de negócio em `services/<recurso>.service.ts`, usando o repository. Lance `errors.xxx(...)` ([shared/errors/app-error.ts](src/shared/errors/app-error.ts)) quando uma regra impedir a operação.
+4. **Controller:** um método em `controllers/<recurso>.controller.ts` que chama o service e devolve o DTO.
+5. **Route:** uma linha em `routes/<recurso>.routes.ts` ligando caminho + schema + controller.
+6. **Banco** (se mudar tabela): altere `infrastructure/database/schema/*.ts` → `npm run db:generate` → revise o SQL em `drizzle/` → `npm run db:migrate`.
+7. **Teste:** um caso em `tests/integration/`. Depois confira em `/docs` e com `npm run routes`.
 
 ---
 
 ## 5. Essa estrutura é comum?
 
-Em parte. Há duas decisões diferentes aqui:
-
-**Organizar por funcionalidade** (uma pasta por assunto em `modules/`): sim, é muito comum e recomendado.
-É como o NestJS organiza "modules", como o Fastify sugere organizar plugins, e o que se chama de
-*feature folders*. A arquitetura do projeto (`sources/Arquitetura.txt` e `docs/architecture/`) pede
-justamente um monólito modular organizado por domínio.
-
-**Separar camadas dentro de cada módulo:** aqui o código atual **não segue o padrão documentado do
-projeto**. O padrão mais comum em backends Node (Express, NestJS) é o fluxo
-`route → controller → service → repository`, com os schemas em arquivos próprios. É exatamente o que
+Sim. É o formato mais comum em backends Node.js (Express, NestJS, Fastify) e o mesmo descrito em
 [docs/standards/01-structure-and-modules.md](docs/standards/01-structure-and-modules.md) e
-[docs/standards/03-layers-and-dependencies.md](docs/standards/03-layers-and-dependencies.md) definem:
+[docs/standards/03-layers-and-dependencies.md](docs/standards/03-layers-and-dependencies.md):
 
-| Padrão documentado | Como está hoje | Diferença |
-|---|---|---|
-| `routes/` declaram o endpoint | `*.routes.ts` | Existe, mas a rota também faz o papel de controller (o handler está dentro dela) |
-| `controllers/` traduzem HTTP ↔ service | não existe | Os handlers ficam dentro das rotas |
-| `schemas/` com os DTOs | schemas dentro das rotas + `http/schemas.ts` | A validação existe e funciona, mas não está separada em arquivos próprios |
-| `services/` com regras de negócio | `*.service.ts` | Existe, mas os services **executam queries Drizzle diretamente**, o que o padrão proíbe |
-| `repositories/` como única camada que fala com o banco | não existe (`*.queries.ts` faz parte desse papel) | **Falta a camada de repository** |
-| Módulos por domínio: `auth`, `finance`, `history`, `reports`, `system` | 11 pastas, quase uma por entidade (`wallets`, `tags`, `transfers`…) | O padrão agrupa carteiras, categorias, tags, transações e transferências em `finance` |
+- **Organização por domínio** (`modules/auth`, `modules/finance`…): cada pasta é uma área de negócio, como no NestJS. É o "monólito modular" pedido pela arquitetura do projeto.
+- **Camadas dentro de cada domínio** (`route → controller → service → repository`): separa o que é HTTP, o que é regra e o que é banco. Dá para trocar uma parte sem mexer nas outras, por exemplo testar uma regra sem subir servidor.
+- **DTOs com validação** em `schemas/`: o contrato da API fica num lugar só, validado e documentado.
 
-Resumo honesto: a API funciona, cobre os requisitos e tem 132 testes passando, mas a organização interna
-não é a que o projeto documentou. Para seguir o padrão, cada módulo ficaria assim:
+Diferenças pequenas em relação a outros projetos que você pode encontrar por aí:
 
-```text
-src/modules/finance/
-├── routes/         transaction.routes.ts      (só endpoints: caminho + schema + controller)
-├── controllers/    transaction.controller.ts  (lê request, chama service, escolhe status HTTP)
-├── schemas/        transaction.schema.ts      (DTOs Zod de entrada e saída)
-├── services/       transaction.service.ts     (regras de negócio, sem SQL)
-├── repositories/   transaction.repository.ts  (todas as queries Drizzle)
-└── types/          transaction.types.ts
-```
-
-Essa reorganização muda **onde** o código mora, não **o que** ele faz. Os testes de integração chamam a
-API por HTTP, então servem de rede de segurança: se continuarem passando depois da mudança, o
-comportamento não mudou.
+- alguns usam **classes de DTO com decorators** (`class-validator` no NestJS); aqui são schemas **Zod**, que fazem o mesmo papel;
+- alguns chamam `schemas/` de `dtos/` ou `validators/`, e `repositories/` de `dao/`. O papel é o mesmo.

@@ -1,5 +1,5 @@
 import pg from "pg";
-import { runMigrations } from "../../src/db/migrate.js";
+import { runMigrations } from "../../src/infrastructure/database/migrate.js";
 
 /**
  * Recria o banco de TESTE do zero e aplica as migrations oficiais (as mesmas do deploy).
