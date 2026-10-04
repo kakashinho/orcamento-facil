@@ -4,3 +4,4 @@
 // reexportações sem quebrar este ponto de entrada.
 export * from "./schema/auth.js";
 export * from "./schema/finance.js";
+export * from "./schema/history.js";
