@@ -1,0 +1,15 @@
+# Contexto do build Docker: só o necessário. Segredos e artefatos locais nunca entram na imagem
+# (o node_modules do Windows também não serve no Linux do container).
+node_modules
+dist
+.env
+.env.*
+!.env.example
+docs
+tests
+*.md
+*.log
+.git
+.gitignore
+.dockerignore
+docker-compose*.yml

@@ -78,11 +78,18 @@ describe("transações (R06–R12, R26, R43, R44, R48, R52, R65, R70, R81)", () 
       expect(await walletBalance(user, user.defaultWalletId)).toBe(0);
       expect(await walletBalance(user, other.id)).toBe(-80);
 
-      await user.api.patch(`/api/transactions/${tx.id}`, { type: "income" });
-      expect(await walletBalance(user, other.id)).toBe(80);
+      // "Lazer" é categoria de despesas: virar receita mantendo-a seria incoerente.
+      const mismatch = await user.api.patch(`/api/transactions/${tx.id}`, { type: "income" });
+      expect(mismatch.statusCode).toBe(422);
+      expect(mismatch.json()).toMatchObject({
+        code: "CATEGORY_TYPE_MISMATCH",
+        details: [{ location: "body", path: "categoryId" }],
+      });
+      expect(await walletBalance(user, other.id)).toBe(-80);
 
-      const cleared = (await user.api.patch(`/api/transactions/${tx.id}`, { categoryId: null })).json();
-      expect(cleared.category).toBeNull();
+      const income = (await user.api.patch(`/api/transactions/${tx.id}`, { type: "income", categoryId: null })).json();
+      expect(income).toMatchObject({ type: "income", category: null });
+      expect(await walletBalance(user, other.id)).toBe(80);
     });
 
     it("exclui a transação e estorna o saldo (R12)", async () => {
@@ -199,7 +206,15 @@ describe("transações (R06–R12, R26, R43, R44, R48, R52, R65, R70, R81)", () 
       expect(summary).toEqual({
         count: 2,
         totals: [{ currency: "BRL", income: 5000, expense: 15.5, net: 4984.5, count: 2 }],
+        primaryCurrency: "BRL",
+        converted: { income: 5000, expense: 15.5, net: 4984.5, ratesUpdatedAt: null, ratesStale: false },
       });
+      // Meses com movimento, do mais recente ao mais antigo, para a navegação entre meses.
+      expect((await user.api.get("/api/transactions/months")).json().data).toEqual([
+        { month: "2026-10", count: 2 },
+        { month: "2026-09", count: 3 },
+        { month: "2026-08", count: 1 },
+      ]);
     });
 
     it("ordena por valor e por categoria, crescente e decrescente (R70)", async () => {

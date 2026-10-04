@@ -1,16 +1,44 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
-import { idParams, secured } from "../../../infrastructure/http/common-schemas.js";
+import { idParams, requiredText, responseId, secured } from "../../../infrastructure/http/common-schemas.js";
+import { CATEGORY_TYPES } from "../types/category.types.js";
 
 const TAGS = ["Categorias"];
 
+const categoryName = requiredText(60, "Informe o nome da categoria.").meta({ example: "Pets" });
+const categoryType = z
+  .enum(CATEGORY_TYPES)
+  .meta({ description: "income = só receitas; expense = só despesas; null = receitas e despesas" });
+
 // ---------- Request DTOs ----------
 
-export const categoryNameRequestSchema = z.object({ name: z.string().min(1).max(60).meta({ example: "Pets" }) });
-export type CategoryNameRequestDto = z.infer<typeof categoryNameRequestSchema>;
+export const listCategoriesQuerySchema = z.strictObject({
+  type: z
+    .enum(CATEGORY_TYPES)
+    .optional()
+    .meta({ description: "Somente categorias que aceitam este tipo de transação (para o formulário)" }),
+});
+export type ListCategoriesQueryDto = z.infer<typeof listCategoriesQuerySchema>;
 
-export const suggestCategoryRequestSchema = z.object({
-  description: z.string().min(1).max(200).meta({ example: "Almoço no restaurante" }),
+export const createCategoryRequestSchema = z.strictObject({
+  name: categoryName,
+  type: categoryType.nullable().optional().meta({ description: "Omitido ou null: vale para receitas e despesas" }),
+});
+export type CreateCategoryRequestDto = z.infer<typeof createCategoryRequestSchema>;
+
+export const updateCategoryRequestSchema = z
+  .strictObject({ name: categoryName.optional(), type: categoryType.nullable().optional() })
+  .refine((body) => body.name !== undefined || body.type !== undefined, {
+    message: "Informe o nome ou o tipo da categoria.",
+  });
+export type UpdateCategoryRequestDto = z.infer<typeof updateCategoryRequestSchema>;
+
+export const suggestCategoryRequestSchema = z.strictObject({
+  description: requiredText(200, "Informe a descrição.").meta({ example: "Almoço no restaurante" }),
+  type: z
+    .enum(CATEGORY_TYPES)
+    .optional()
+    .meta({ description: "Tipo da transação: sugere só categorias compatíveis" }),
 });
 export type SuggestCategoryRequestDto = z.infer<typeof suggestCategoryRequestSchema>;
 
@@ -18,9 +46,10 @@ export type SuggestCategoryRequestDto = z.infer<typeof suggestCategoryRequestSch
 
 export const categoryResponseSchema = z
   .object({
-    id: z.string(),
+    id: responseId,
     name: z.string(),
-    predefined: z.boolean(),
+    type: categoryType.nullable(),
+    predefined: z.boolean().meta({ description: "true = categoria do sistema (R07), não pode ser alterada" }),
     systemKey: z.string().nullable(),
   })
   .meta({ id: "Category" });
@@ -32,7 +61,7 @@ export type CategoryListResponseDto = z.infer<typeof categoryListResponseSchema>
 export const categorySuggestionsResponseSchema = z.object({
   suggestions: z.array(
     z.object({
-      categoryId: z.string(),
+      categoryId: responseId,
       name: z.string(),
       confidence: z.number().meta({ description: "0 a 1" }),
       reasons: z.array(z.string()),
@@ -47,14 +76,16 @@ export const categoryRouteSchemas = {
   list: {
     tags: TAGS,
     summary: "Listar categorias predefinidas (R07) e personalizadas (R08)",
+    description: "Predefinidas primeiro, depois por nome. Use `type` para o seletor do formulário de receita ou despesa.",
     security: secured,
+    querystring: listCategoriesQuerySchema,
     response: { 200: categoryListResponseSchema },
   },
   create: {
     tags: TAGS,
     summary: "Criar categoria personalizada (R08)",
     security: secured,
-    body: categoryNameRequestSchema,
+    body: createCategoryRequestSchema,
     response: { 201: categoryResponseSchema },
   },
   suggest: {
@@ -66,12 +97,14 @@ export const categoryRouteSchemas = {
     body: suggestCategoryRequestSchema,
     response: { 200: categorySuggestionsResponseSchema },
   },
-  rename: {
+  update: {
     tags: TAGS,
-    summary: "Renomear categoria personalizada",
+    summary: "Renomear ou mudar o tipo de uma categoria personalizada",
+    description:
+      "Restringir o tipo exige que nenhuma transação do outro tipo use a categoria (409 CATEGORY_TYPE_IN_USE). Predefinidas: 403.",
     security: secured,
     params: idParams,
-    body: categoryNameRequestSchema,
+    body: updateCategoryRequestSchema,
     response: { 200: categoryResponseSchema },
   },
   remove: {

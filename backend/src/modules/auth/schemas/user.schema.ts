@@ -1,22 +1,35 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
-import { currencyCode, secured } from "../../../infrastructure/http/common-schemas.js";
+import {
+  currencyCode,
+  responseId,
+  responseTimestamp,
+  secured,
+  timeZone,
+} from "../../../infrastructure/http/common-schemas.js";
+import { THEMES } from "../types/user.types.js";
 
 const TAGS = ["Usuário"];
 
-const username = z
+export const usernameField = z
   .string()
-  .min(3, "O nome de usuário deve ter pelo menos 3 caracteres")
-  .max(30)
-  .regex(/^[A-Za-z0-9_.]+$/, "Use apenas letras, números, ponto e sublinhado")
+  .trim()
+  .min(3, "Use pelo menos 3 caracteres.")
+  .max(30, "Use no máximo 30 caracteres.")
+  .regex(/^[A-Za-z0-9_.]+$/, "Use apenas letras sem acento, números, ponto e sublinhado.")
   .meta({ example: "maria.silva" });
+
+const theme = z
+  .enum(THEMES)
+  .meta({ description: "Tema do app (R42): system segue o aparelho; light = claro; dark = escuro" });
 
 // ---------- Request DTOs ----------
 
-export const updateProfileRequestSchema = z.object({
-  username: username.optional(),
+export const updateProfileRequestSchema = z.strictObject({
+  username: usernameField.optional(),
   primaryCurrency: currencyCode.optional(),
-  timezone: z.string().min(1).max(64).meta({ example: "America/Sao_Paulo" }).optional(),
+  timezone: timeZone.optional(),
+  theme: theme.optional(),
 });
 export type UpdateProfileRequestDto = z.infer<typeof updateProfileRequestSchema>;
 
@@ -24,13 +37,14 @@ export type UpdateProfileRequestDto = z.infer<typeof updateProfileRequestSchema>
 
 export const userResponseSchema = z
   .object({
-    id: z.string(),
+    id: responseId,
     email: z.string(),
     username: z.string(),
     role: z.enum(["user", "admin"]),
     primaryCurrency: z.string(),
     timezone: z.string(),
-    createdAt: z.string(),
+    theme,
+    createdAt: responseTimestamp,
   })
   .meta({ id: "User" });
 export type UserResponseDto = z.infer<typeof userResponseSchema>;
@@ -40,17 +54,16 @@ export type UserResponseDto = z.infer<typeof userResponseSchema>;
 export const userRouteSchemas = {
   getMe: {
     tags: TAGS,
-    summary: "Dados do usuário autenticado",
+    summary: "Dados e preferências do usuário autenticado",
     security: secured,
     response: { 200: userResponseSchema },
   },
   updateMe: {
     tags: TAGS,
-    summary: "Atualizar perfil — nome de usuário, moeda principal (R28) e fuso horário",
+    summary: "Atualizar perfil — nome de usuário, moeda principal (R28), fuso horário e tema (R42)",
+    description: "Envie apenas os campos alterados.",
     security: secured,
     body: updateProfileRequestSchema,
     response: { 200: userResponseSchema },
   },
 } satisfies Record<string, FastifySchema>;
-
-export { username as usernameField };

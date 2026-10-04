@@ -105,9 +105,18 @@ describe("relatórios (R41, R58) e câmbio (R29)", () => {
     ]);
   });
 
-  it("valida períodos", async () => {
-    expect((await user.api.get("/api/reports/statement?from=2026-09-30&to=2026-09-01")).statusCode).toBe(400);
-    expect((await user.api.get("/api/reports/cash-flow?from=2010-01-01&to=2026-01-01")).statusCode).toBe(400);
+  it("valida períodos apontando o campo", async () => {
+    const inverted = await user.api.get("/api/reports/statement?from=2026-09-30&to=2026-09-01");
+    expect(inverted.statusCode).toBe(400);
+    expect(inverted.json().details).toEqual([
+      { location: "querystring", path: "to", message: "A data final deve ser igual ou posterior à inicial." },
+    ]);
+    const tooLong = await user.api.get("/api/reports/cash-flow?from=2010-01-01&to=2026-01-01");
+    expect(tooLong.json().details).toEqual([
+      { location: "querystring", path: "to", message: "O período máximo é de 5 anos." },
+    ]);
+    const months = await user.api.get("/api/reports/monthly?fromMonth=2020-01&toMonth=2026-01");
+    expect(months.json().details[0]).toMatchObject({ path: "toMonth", message: "O período máximo é de 36 meses." });
   });
 
   it("consulta e converte câmbio (R29)", async () => {
@@ -115,6 +124,8 @@ describe("relatórios (R41, R58) e câmbio (R29)", () => {
     expect(rates).toMatchObject({ base: "BRL", rates: { USD: 0.2, EUR: 0.16 }, stale: false });
     const converted = (await user.api.get("/api/exchange-rates/convert?from=USD&to=BRL&amount=12.5")).json();
     expect(converted).toMatchObject({ from: "USD", to: "BRL", amount: 12.5, result: 62.5, rate: 5 });
-    expect((await user.api.get("/api/exchange-rates/convert?from=USD&to=XYZ&amount=1")).statusCode).toBe(422);
+    const unsupported = await user.api.get("/api/exchange-rates/convert?from=USD&to=XYZ&amount=1");
+    expect(unsupported.statusCode).toBe(400);
+    expect(unsupported.json().details[0]).toMatchObject({ location: "querystring", path: "to" });
   });
 });

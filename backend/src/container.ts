@@ -15,12 +15,15 @@ import { EventLogger } from "./infrastructure/logging/event-logger.js";
 import { createLogger, type Logger } from "./infrastructure/logging/logger.js";
 import { LogMailer, type Mailer, SmtpMailer } from "./infrastructure/mail/mailer.js";
 import { AuthController } from "./modules/auth/controllers/auth.controller.js";
+import { BiometricController } from "./modules/auth/controllers/biometric.controller.js";
 import { ResetPasswordController } from "./modules/auth/controllers/reset-password.controller.js";
 import { UserController } from "./modules/auth/controllers/user.controller.js";
+import { BiometricCredentialRepository } from "./modules/auth/repositories/biometric-credential.repository.js";
 import { PasswordResetTokenRepository } from "./modules/auth/repositories/password-reset-token.repository.js";
 import { SessionRepository } from "./modules/auth/repositories/session.repository.js";
 import { UserRepository } from "./modules/auth/repositories/user.repository.js";
 import { AuthService } from "./modules/auth/services/auth.service.js";
+import { BiometricAuthService } from "./modules/auth/services/biometric-auth.service.js";
 import { UserService } from "./modules/auth/services/user.service.js";
 import { CategoryController } from "./modules/finance/controllers/category.controller.js";
 import { ExchangeRateController } from "./modules/finance/controllers/exchange-rate.controller.js";
@@ -53,6 +56,7 @@ import { HealthRepository } from "./modules/system/repositories/health.repositor
 import { SystemSettingsRepository } from "./modules/system/repositories/system-settings.repository.js";
 import { AppLogService } from "./modules/system/services/app-log.service.js";
 import { HealthService } from "./modules/system/services/health.service.js";
+import { HousekeepingService } from "./modules/system/services/housekeeping.service.js";
 import { MaintenanceService } from "./modules/system/services/maintenance.service.js";
 
 export interface ContainerOverrides {
@@ -74,6 +78,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     users: new UserRepository(db),
     sessions: new SessionRepository(db),
     resetTokens: new PasswordResetTokenRepository(db),
+    biometricCredentials: new BiometricCredentialRepository(db),
     wallets: new WalletRepository(db, cipher),
     categories: new CategoryRepository(db),
     tags: new TagRepository(db),
@@ -104,7 +109,12 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     eventLog,
   );
-  const history = new ActionHistoryService(repositories.history, clock, config.undoWindowHours);
+  const history = new ActionHistoryService(
+    repositories.history,
+    clock,
+    config.undoWindowHours,
+    config.housekeeping.historyRetentionDays,
+  );
   const users = new UserService(repositories.users, clock);
   const wallets = new WalletService({
     wallets: repositories.wallets,
@@ -121,6 +131,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     users: repositories.users,
     sessions: repositories.sessions,
     resetTokens: repositories.resetTokens,
+    biometricCredentials: repositories.biometricCredentials,
     runner,
     passwords,
     accessTokens,
@@ -129,6 +140,14 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     // O cadastro cria a carteira padrão na mesma transação (o auth não conhece o finance).
     onUserRegistered: (tx, user) => wallets.createDefaultWallet(tx, user),
+  });
+  const biometrics = new BiometricAuthService({
+    credentials: repositories.biometricCredentials,
+    users: repositories.users,
+    auth,
+    clock,
+    eventLog,
+    challengeTtlSeconds: config.auth.biometricChallengeTtlSeconds,
   });
   const categories = new CategoryService(repositories.categories, repositories.transactions, clock);
   const tags = new TagService(repositories.tags, clock);
@@ -139,6 +158,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     tags,
     history,
     users,
+    exchangeRates,
     runner,
     clock,
   });
@@ -166,8 +186,18 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   const undo = new UndoService(runner, history, undoHandlers, eventLog);
   const reports = new ReportService({ wallets, transactions, transfers, users, exchangeRates, clock });
   const maintenance = new MaintenanceService(repositories.systemSettings, clock, eventLog, config.maintenanceForced);
-  const appLogs = new AppLogService(repositories.appLogs, eventLog);
+  const appLogs = new AppLogService(repositories.appLogs, eventLog, config.housekeeping.logRetentionDays);
   const health = new HealthService(repositories.health, logger);
+  // Cada módulo limpa os próprios dados vencidos; o system só agenda (sem acessar tabelas alheias).
+  const housekeeping = new HousekeepingService(
+    [
+      { name: "auth", run: (now) => auth.purgeExpired(now) },
+      { name: "history", run: (now) => history.purgeExpired(now) },
+      { name: "logs", run: (now) => appLogs.purgeExpired(now) },
+    ],
+    clock,
+    eventLog,
+  );
 
   // ---------- HTTP: guards e controllers ----------
   const guards: HttpGuards = {
@@ -180,6 +210,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   };
   const controllers = {
     auth: new AuthController(auth),
+    biometric: new BiometricController(biometrics),
     user: new UserController(users),
     resetPassword: new ResetPasswordController(auth),
     wallet: new WalletController(wallets),
@@ -191,7 +222,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     history: new HistoryController(history, undo),
     report: new ReportController(reports),
     system: new SystemController(health, maintenance, clock),
-    admin: new AdminController(maintenance, appLogs),
+    admin: new AdminController(maintenance, appLogs, housekeeping),
   };
 
   return {
@@ -203,7 +234,22 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     cipher,
     mailer,
     eventLog,
-    services: { auth, users, wallets, categories, tags, transactions, transfers, exchangeRates, history, undo, reports, maintenance },
+    services: {
+      auth,
+      biometrics,
+      users,
+      wallets,
+      categories,
+      tags,
+      transactions,
+      transfers,
+      exchangeRates,
+      history,
+      undo,
+      reports,
+      maintenance,
+      housekeeping,
+    },
     controllers,
     guards,
     async close() {

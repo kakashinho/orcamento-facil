@@ -103,19 +103,23 @@ export class TransferService {
       if (existing) return { transfer: toTransferResponseDto(existing), created: false };
     }
     if (input.sourceWalletId === input.targetWalletId) {
-      throw errors.validation("As carteiras de origem e destino devem ser diferentes.");
+      throw errors.invalidField("targetWalletId", "Escolha uma carteira de destino diferente da origem.");
     }
 
     const source = await wallets.findOwned(userId, input.sourceWalletId);
+    if (!source) throw errors.unprocessable("INVALID_WALLET", "Carteira de origem inexistente.", "sourceWalletId");
     const target = await wallets.findOwned(userId, input.targetWalletId);
-    if (!source || !target) throw errors.unprocessable("INVALID_WALLET", "Carteira de origem ou destino inexistente.");
+    if (!target) throw errors.unprocessable("INVALID_WALLET", "Carteira de destino inexistente.", "targetWalletId");
 
     const sourceCents = toCents(input.amount);
     let targetCents: number;
     let rate: string | null = null;
     if (source.currency === target.currency) {
       if (input.targetAmount !== undefined && toCents(input.targetAmount, "targetAmount") !== sourceCents) {
-        throw errors.validation("Entre carteiras da mesma moeda, o valor de destino deve ser igual ao de origem.");
+        throw errors.invalidField(
+          "targetAmount",
+          "Entre carteiras da mesma moeda, o valor de destino deve ser igual ao de origem (ou omitido).",
+        );
       }
       targetCents = sourceCents;
     } else if (input.targetAmount !== undefined) {
@@ -126,7 +130,9 @@ export class TransferService {
       rate = quote.rate;
       targetCents = convertCents(sourceCents, rate);
     }
-    if (targetCents <= 0) throw errors.validation("O valor convertido deve ser maior que zero.");
+    if (targetCents <= 0) {
+      throw errors.invalidField("amount", "O valor convertido para a moeda de destino ficou zerado. Informe um valor maior.");
+    }
 
     const now = clock.now();
     const { timezone } = await users.getPreferences(userId);

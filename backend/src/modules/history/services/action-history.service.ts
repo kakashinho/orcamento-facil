@@ -3,7 +3,9 @@ import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction } from "../../../infrastructure/database/client.js";
 import type { ActionHistoryRepository } from "../repositories/action-history.repository.js";
 import type { HistoryListResponseDto } from "../schemas/history.schema.js";
-import type { ClaimedEntry, HistoryAction, HistoryEntityType } from "../types/history.types.js";
+import { type ClaimedEntry, HISTORY_LABELS, type HistoryAction, type HistoryEntityType } from "../types/history.types.js";
+
+const DAY_MS = 86_400_000;
 
 /**
  * Contrato público do módulo history: os outros módulos registram aqui suas ações
@@ -14,6 +16,7 @@ export class ActionHistoryService {
     private readonly entries: ActionHistoryRepository,
     private readonly clock: Clock,
     private readonly undoWindowHours: number,
+    private readonly retentionDays: number,
   ) {}
 
   private windowStart(): Date {
@@ -41,6 +44,7 @@ export class ActionHistoryService {
       data: rows.map((row) => ({
         id: row.id,
         action: row.action,
+        label: HISTORY_LABELS[row.action],
         entityType: row.entityType,
         entityId: row.entityId,
         createdAt: row.createdAt.toISOString(),
@@ -61,5 +65,10 @@ export class ActionHistoryService {
   /** Remove o histórico de registros apagados definitivamente (ex.: exclusão de carteira). */
   purgeEntities(tx: DbTransaction, userId: string, entityIds: string[]): Promise<void> {
     return this.entries.deleteByEntityIds(userId, entityIds, tx);
+  }
+
+  /** Limpeza periódica: entradas mais antigas que a retenção (sempre além da janela do desfazer). */
+  purgeExpired(now: Date): Promise<number> {
+    return this.entries.deleteOlderThan(new Date(now.getTime() - this.retentionDays * DAY_MS));
   }
 }

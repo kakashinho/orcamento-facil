@@ -18,6 +18,11 @@ export function authRoutes(controller: AuthController, guards: HttpGuards): Fast
     app.post("/logout-all", { ...authenticated, schema: schemas.logoutAll }, controller.logoutAll);
     app.post("/password/forgot", { ...limited, schema: schemas.forgotPassword }, controller.forgotPassword);
     app.post("/password/reset", { ...limited, schema: schemas.resetPassword }, controller.resetPassword);
-    app.post("/password/change", { ...authenticated, schema: schemas.changePassword }, controller.changePassword);
+    // Limite por IP também aqui: impede testar senhas atuais em massa com um token roubado.
+    app.post(
+      "/password/change",
+      { ...authenticated, ...limited, schema: schemas.changePassword },
+      controller.changePassword,
+    );
   };
 }

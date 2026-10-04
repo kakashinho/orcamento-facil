@@ -49,7 +49,10 @@ export const wallets = pgTable(
   ],
 );
 
-/** Categorias predefinidas têm `user_id` nulo e `system_key`; personalizadas pertencem a um usuário. */
+/**
+ * Categorias predefinidas têm `user_id` nulo e `system_key`; personalizadas pertencem a um usuário.
+ * `type` restringe a categoria a receitas ou despesas; nulo vale para as duas (ex.: "Outros").
+ */
 export const categories = pgTable(
   "categories",
   {
@@ -57,6 +60,7 @@ export const categories = pgTable(
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     systemKey: varchar("system_key", { length: 40 }),
     name: varchar("name", { length: 60 }).notNull(),
+    type: varchar("type", { length: 10 }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -68,6 +72,7 @@ export const categories = pgTable(
       .where(sql`${t.userId} is not null and ${t.deletedAt} is null`),
     index("categories_user_id_idx").on(t.userId),
     check("categories_owner_check", sql`(${t.userId} is null) = (${t.systemKey} is not null)`),
+    check("categories_type_check", sql`${t.type} is null or ${t.type} in ('income', 'expense')`),
   ],
 );
 

@@ -11,6 +11,11 @@ export class AppLogRepository extends Repository implements LogSink {
     await this.db.insert(appLogs).values(entry);
   }
 
+  async deleteOlderThan(before: Date): Promise<number> {
+    const result = await this.db.delete(appLogs).where(lt(appLogs.createdAt, before));
+    return result.rowCount ?? 0;
+  }
+
   async list(filters: AppLogFilters): Promise<AppLogRecord[]> {
     const conditions: SQL[] = [];
     if (filters.event) conditions.push(like(appLogs.event, `${escapeLike(filters.event)}%`));

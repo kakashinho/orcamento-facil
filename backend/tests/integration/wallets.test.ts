@@ -57,8 +57,19 @@ describe("carteiras (R53, R55, R56, R28)", () => {
     const duplicate = await user.api.post("/api/wallets", { name: "POUPANÇA" });
     expect(duplicate.statusCode).toBe(409);
     expect(duplicate.json().code).toBe("WALLET_NAME_TAKEN");
-    expect((await user.api.post("/api/wallets", { name: "X", currency: "XYZ" })).statusCode).toBe(422);
-    expect((await user.api.post("/api/wallets", { name: "Y", currency: "brl" })).statusCode).toBe(400);
+    expect(duplicate.json().details).toEqual([
+      { location: "body", path: "name", message: "Você já possui uma carteira com esse nome." },
+    ]);
+    const unsupported = await user.api.post("/api/wallets", { name: "X", currency: "XYZ" });
+    expect(unsupported.statusCode).toBe(400);
+    expect(unsupported.json().details[0]).toMatchObject({ location: "body", path: "currency" });
+    // Código em minúsculas e com espaços é normalizado (teclado do celular).
+    const lower = await user.api.post("/api/wallets", { name: "Viagem", currency: " usd " });
+    expect(lower.statusCode).toBe(201);
+    expect(lower.json().currency).toBe("USD");
+    const blank = await user.api.post("/api/wallets", { name: "   " });
+    expect(blank.statusCode).toBe(400);
+    expect(blank.json().details).toEqual([{ location: "body", path: "name", message: "Informe o nome da carteira." }]);
   });
 
   it("ajustar o saldo inicial recompõe o saldo atual", async () => {

@@ -1,40 +1,58 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
-import { currencyCode, secured } from "../../../infrastructure/http/common-schemas.js";
+import { currencyCode, email, responseTimestamp, secured } from "../../../infrastructure/http/common-schemas.js";
 import { userResponseSchema, usernameField } from "./user.schema.js";
 
 const TAGS = ["Autenticação"];
 
-const email = z.email("Informe um e-mail válido").max(320).meta({ example: "maria@exemplo.com" });
-const password = z.string().min(1).max(128).meta({ example: "Senha@Forte123" });
+/** Senha informada para entrar (sem regra de força: só precisa conferir). */
+const password = z.string().min(1, "Informe a senha.").max(128, "Use no máximo 128 caracteres.").meta({ example: "Senha@Forte123" });
+
+/** Senha nova: a política completa (R02) é conferida no service, que conhece o e-mail e o usuário. */
+const newPassword = z
+  .string()
+  .min(1, "Informe a nova senha.")
+  .max(128, "Use no máximo 128 caracteres.")
+  .meta({
+    description:
+      "8 a 128 caracteres, com letra maiúscula, minúscula, número e caractere especial; não pode conter o nome de usuário nem o e-mail",
+    example: "Senha@Forte123",
+  });
+
+const opaqueToken = z.string().trim().min(1, "Campo obrigatório.").max(512, "Token inválido.");
 
 // ---------- Request DTOs ----------
 
-export const registerRequestSchema = z.object({
+export const registerRequestSchema = z.strictObject({
   email,
   username: usernameField,
-  password,
-  primaryCurrency: currencyCode.optional(),
+  password: newPassword,
+  primaryCurrency: currencyCode.optional().meta({ description: "Moeda principal (R28). Padrão: BRL" }),
 });
 export type RegisterRequestDto = z.infer<typeof registerRequestSchema>;
 
 export const loginRequestSchema = z
-  .object({ email: email.optional(), username: z.string().min(1).max(30).optional(), password })
+  .strictObject({
+    email: email.optional(),
+    username: z.string().trim().min(1, "Informe o nome de usuário.").max(30, "Use no máximo 30 caracteres.").optional(),
+    password,
+  })
   .refine((body) => body.email !== undefined || body.username !== undefined, {
-    message: "Informe o e-mail ou o nome de usuário",
+    message: "Informe o e-mail ou o nome de usuário.",
+    path: ["email"],
   });
 export type LoginRequestDto = z.infer<typeof loginRequestSchema>;
 
-export const refreshTokenRequestSchema = z.object({ refreshToken: z.string().min(1) });
+export const refreshTokenRequestSchema = z.strictObject({ refreshToken: opaqueToken });
 export type RefreshTokenRequestDto = z.infer<typeof refreshTokenRequestSchema>;
 
-export const forgotPasswordRequestSchema = z.object({ email });
+export const forgotPasswordRequestSchema = z.strictObject({ email });
 export type ForgotPasswordRequestDto = z.infer<typeof forgotPasswordRequestSchema>;
 
-export const resetPasswordRequestSchema = z.object({ token: z.string().min(1), password });
+export const resetPasswordRequestSchema = z.strictObject({ token: opaqueToken, password: newPassword });
 export type ResetPasswordRequestDto = z.infer<typeof resetPasswordRequestSchema>;
 
-export const changePasswordRequestSchema = z.object({ currentPassword: password, newPassword: password });
+export const changePasswordRequestSchema = z.strictObject({ currentPassword: password, newPassword });
 export type ChangePasswordRequestDto = z.infer<typeof changePasswordRequestSchema>;
 
 // ---------- Response DTOs ----------
@@ -45,7 +63,7 @@ export const authTokensResponseSchema = z
     accessToken: z.string(),
     expiresIn: z.number().meta({ description: "Validade do access token, em segundos" }),
     refreshToken: z.string(),
-    refreshTokenExpiresAt: z.string(),
+    refreshTokenExpiresAt: responseTimestamp,
   })
   .meta({ id: "AuthTokens" });
 export type AuthTokensResponseDto = z.infer<typeof authTokensResponseSchema>;
@@ -81,7 +99,7 @@ export const authRouteSchemas = {
     tags: TAGS,
     summary: "Renovar sessão",
     description:
-      "Troca o refresh token por um novo par de tokens (rotação). Reutilizar um refresh token já usado encerra a sessão.",
+      "Troca o refresh token por um novo par de tokens (rotação). Reutilizar um refresh token já usado encerra a sessão. Falha: 401 INVALID_REFRESH_TOKEN (fazer login de novo).",
     body: refreshTokenRequestSchema,
     response: { 200: authTokensResponseSchema },
   },
@@ -105,12 +123,14 @@ export const authRouteSchemas = {
   resetPassword: {
     tags: TAGS,
     summary: "Redefinir senha com o token recebido por e-mail (R04)",
-    description: "Consome o link (uso único), troca a senha e encerra todas as sessões.",
+    description:
+      "Consome o link (uso único), troca a senha e encerra todas as sessões e biometrias. Link inválido ou vencido: 400 INVALID_RESET_TOKEN.",
     body: resetPasswordRequestSchema,
   },
   changePassword: {
     tags: TAGS,
     summary: "Trocar a senha (usuário autenticado)",
+    description: "Mantém a sessão atual e encerra as demais. Senha atual errada: 422 INVALID_CURRENT_PASSWORD.",
     security: secured,
     body: changePasswordRequestSchema,
   },

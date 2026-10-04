@@ -1,54 +1,86 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
-import { idParams, isoDate, limitQuery, positiveAmount, secured } from "../../../infrastructure/http/common-schemas.js";
+import {
+  cursorQuery,
+  dateRangeRule,
+  idParams,
+  isoDate,
+  limitQuery,
+  optionalText,
+  positiveAmount,
+  responseDate,
+  responseId,
+  responseTimestamp,
+  secured,
+  uuid,
+} from "../../../infrastructure/http/common-schemas.js";
 
 const TAGS = ["Transferências"];
 
 // ---------- Request DTOs ----------
 
-export const createTransferRequestSchema = z.object({
-  sourceWalletId: z.uuid(),
-  targetWalletId: z.uuid(),
-  amount: positiveAmount,
-  targetAmount: positiveAmount.optional(),
-  date: isoDate.optional(),
-  description: z.string().max(200).optional(),
-});
+export const createTransferRequestSchema = z
+  .strictObject({
+    sourceWalletId: uuid(),
+    targetWalletId: uuid(),
+    amount: positiveAmount.meta({ description: "Valor debitado, na moeda da carteira de origem" }),
+    targetAmount: positiveAmount.optional().meta({
+      description:
+        "Valor creditado, na moeda de destino. Só entre moedas diferentes; omitido, usa a cotação atual (R29)",
+    }),
+    date: isoDate.optional().meta({ description: "Padrão: hoje, no fuso do usuário" }),
+    description: optionalText(200).optional(),
+  })
+  .refine((body) => body.sourceWalletId !== body.targetWalletId, {
+    message: "Escolha uma carteira de destino diferente da origem.",
+    path: ["targetWalletId"],
+  });
 export type CreateTransferRequestDto = z.infer<typeof createTransferRequestSchema>;
 
-export const idempotencyHeadersSchema = z.object({ "idempotency-key": z.string().min(8).max(100).optional() });
-
-export const listTransfersQuerySchema = z.object({
-  walletId: z.uuid().optional(),
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-  limit: limitQuery,
-  cursor: z.string().max(500).optional(),
+/** Cabeçalhos não são estritos: proxies e o próprio app enviam vários outros. */
+export const idempotencyHeadersSchema = z.object({
+  "idempotency-key": z
+    .string()
+    .trim()
+    .min(8, "Idempotency-Key deve ter pelo menos 8 caracteres.")
+    .max(100, "Idempotency-Key deve ter no máximo 100 caracteres.")
+    .optional()
+    .meta({ description: "Chave única por tentativa (ex.: UUID): repetir a requisição devolve a mesma transferência" }),
 });
+
+export const listTransfersQuerySchema = z
+  .strictObject({
+    walletId: uuid().optional().meta({ description: "Transferências que saem ou entram nesta carteira" }),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    limit: limitQuery(),
+    cursor: cursorQuery.optional(),
+  })
+  .superRefine(dateRangeRule("from", "to"));
 export type ListTransfersQueryDto = z.infer<typeof listTransfersQuerySchema>;
 
 // ---------- Response DTOs ----------
 
-const walletSummary = z.object({ id: z.string(), name: z.string(), currency: z.string() });
+const walletSummary = z.object({ id: responseId, name: z.string(), currency: z.string() });
 
 export const transferResponseSchema = z
   .object({
-    id: z.string(),
+    id: responseId,
     sourceWallet: walletSummary,
     targetWallet: walletSummary,
     amount: z.number().meta({ description: "Valor debitado, na moeda da carteira de origem" }),
     targetAmount: z.number().meta({ description: "Valor creditado, na moeda da carteira de destino" }),
     exchangeRate: z.number().nullable().meta({ description: "Taxa aplicada quando as moedas diferem" }),
-    date: z.string(),
+    date: responseDate,
     description: z.string().nullable(),
-    createdAt: z.string(),
+    createdAt: responseTimestamp,
   })
   .meta({ id: "Transfer" });
 export type TransferResponseDto = z.infer<typeof transferResponseSchema>;
 
 export const transferPageResponseSchema = z.object({
   data: z.array(transferResponseSchema),
-  nextCursor: z.string().nullable(),
+  nextCursor: z.string().nullable().meta({ description: "Envie em ?cursor= para a próxima página; null = fim" }),
 });
 export type TransferPageResponseDto = z.infer<typeof transferPageResponseSchema>;
 
@@ -58,6 +90,7 @@ export const transferRouteSchemas = {
   list: {
     tags: TAGS,
     summary: "Listar transferências entre carteiras",
+    description: "Mais recentes primeiro, com rolagem infinita (`nextCursor`).",
     security: secured,
     querystring: listTransfersQuerySchema,
     response: { 200: transferPageResponseSchema },
@@ -66,7 +99,7 @@ export const transferRouteSchemas = {
     tags: TAGS,
     summary: "Transferir entre carteiras (R54)",
     description:
-      "Debita a origem e credita o destino atomicamente, sem gerar receita ou despesa. Entre moedas diferentes, converte pela cotação atual (R29) ou usa `targetAmount`, se informado. Envie o cabeçalho `Idempotency-Key` para tornar repetições seguras.",
+      "Debita a origem e credita o destino atomicamente, sem gerar receita ou despesa. Entre moedas diferentes, converte pela cotação atual (R29) ou usa `targetAmount`, se informado. Envie o cabeçalho `Idempotency-Key` para tornar repetições seguras: 201 ao criar, 200 ao repetir.",
     security: secured,
     headers: idempotencyHeadersSchema,
     body: createTransferRequestSchema,

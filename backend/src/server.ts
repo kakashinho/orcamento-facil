@@ -8,11 +8,13 @@ const container = createContainer(config);
 const app = await buildApp(container);
 
 let shuttingDown = false;
+let stopHousekeeping = (): void => undefined;
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   app.log.info({ signal }, "Encerrando o servidor");
   try {
+    stopHousekeeping();
     await app.close();
     await container.close();
     process.exit(0);
@@ -27,6 +29,8 @@ process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
 try {
   await app.listen({ host: config.host, port: config.port });
+  // Limpeza periódica de dados vencidos (sessões, links de recuperação, histórico e logs antigos).
+  stopHousekeeping = container.services.housekeeping.schedule(config.housekeeping.intervalMinutes);
 } catch (error) {
   app.log.fatal({ err: error }, "Não foi possível iniciar o servidor");
   await container.close();

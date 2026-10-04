@@ -48,7 +48,9 @@ describe("tokens (R03, R87)", () => {
     expect(expiresIn).toBe(900);
     expect(service.verify(token)).toMatchObject({ sub: "u1", sid: "s1", role: "user", typ: "access" });
     clock.advance(901_000);
-    expect(() => service.verify(token)).toThrow(/Token inválido/);
+    // Vencido ≠ inválido: o app renova a sessão em TOKEN_EXPIRED e volta ao login em INVALID_TOKEN.
+    expect(() => service.verify(token)).toThrow(expect.objectContaining({ code: "TOKEN_EXPIRED", statusCode: 401 }));
+    expect(() => service.verify("nao.e.jwt")).toThrow(expect.objectContaining({ code: "INVALID_TOKEN" }));
   });
 
   it("rejeita token assinado com outro segredo ou adulterado", () => {

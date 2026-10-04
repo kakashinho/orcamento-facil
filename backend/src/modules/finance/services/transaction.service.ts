@@ -16,6 +16,8 @@ import type {
   ListTransactionsQueryDto,
   ParsedTransactionResponseDto,
   TransactionFiltersQueryDto,
+  TransactionMonthsQueryDto,
+  TransactionMonthsResponseDto,
   TransactionPageResponseDto,
   TransactionResponseDto,
   TransactionSummaryResponseDto,
@@ -32,6 +34,7 @@ import {
 } from "../types/transaction.types.js";
 import { addDelta, type BalanceDeltas } from "../types/wallet.types.js";
 import type { CategoryService } from "./category.service.js";
+import type { ExchangeRateService } from "./exchange-rate.service.js";
 import type { TagService } from "./tag.service.js";
 import { parseTransactionText } from "./transaction-text-parser.js";
 import type { WalletService } from "./wallet.service.js";
@@ -43,6 +46,7 @@ export interface TransactionServiceDeps {
   tags: TagService;
   history: ActionHistoryService;
   users: UserService;
+  exchangeRates: ExchangeRateService;
   runner: TransactionRunner;
   clock: Clock;
 }
@@ -122,9 +126,13 @@ export class TransactionService {
     };
   }
 
-  /** Totais de receitas e despesas do filtro, por moeda (ex.: resumo do mês — R26). */
+  /**
+   * Totais de receitas e despesas do filtro (ex.: resumo do mês — R26): por moeda das carteiras
+   * e convertidos para a moeda principal do usuário (R28, R29).
+   */
   async summary(userId: string, filters: TransactionFiltersQueryDto): Promise<TransactionSummaryResponseDto> {
-    const rows = await this.deps.transactions.listAmounts(userId, filters);
+    const { transactions, users, exchangeRates } = this.deps;
+    const rows = await transactions.listAmounts(userId, filters);
     const byCurrency = new Map<string, { income: number; expense: number; count: number }>();
     for (const row of rows) {
       const entry = byCurrency.get(row.currency) ?? { income: 0, expense: 0, count: 0 };
@@ -133,24 +141,51 @@ export class TransactionService {
       entry.count += 1;
       byCurrency.set(row.currency, entry);
     }
+    const entries = [...byCurrency.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+    const { primaryCurrency } = await users.getPreferences(userId);
+    const income = await exchangeRates.tryConvertMany(
+      entries.map(([currency, entry]) => ({ cents: entry.income, currency })),
+      primaryCurrency,
+    );
+    const expense = await exchangeRates.tryConvertMany(
+      entries.map(([currency, entry]) => ({ cents: entry.expense, currency })),
+      primaryCurrency,
+    );
+    const ratesUpdatedAt = income?.updatedAt ?? expense?.updatedAt ?? null;
+
     return {
       count: rows.length,
-      totals: [...byCurrency.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([currency, entry]) => ({
-          currency,
-          income: fromCents(entry.income),
-          expense: fromCents(entry.expense),
-          net: fromCents(entry.income - entry.expense),
-          count: entry.count,
-        })),
+      totals: entries.map(([currency, entry]) => ({
+        currency,
+        income: fromCents(entry.income),
+        expense: fromCents(entry.expense),
+        net: fromCents(entry.income - entry.expense),
+        count: entry.count,
+      })),
+      primaryCurrency,
+      converted:
+        income && expense
+          ? {
+              income: fromCents(income.total),
+              expense: fromCents(expense.total),
+              net: fromCents(income.total - expense.total),
+              ratesUpdatedAt: ratesUpdatedAt ? ratesUpdatedAt.toISOString() : null,
+              ratesStale: income.stale || expense.stale,
+            }
+          : null,
     };
+  }
+
+  /** Meses que têm transações — o app usa para navegar entre meses (R26). */
+  async months(userId: string, query: TransactionMonthsQueryDto): Promise<TransactionMonthsResponseDto> {
+    return { data: await this.deps.transactions.listMonths(userId, query) };
   }
 
   /** R65: o app converte a voz em texto; aqui viramos rascunho + categorias sugeridas (R44). */
   async parse(userId: string, text: string): Promise<ParsedTransactionResponseDto> {
     const draft = parseTransactionText(text, await this.today(userId));
-    const { suggestions } = await this.deps.categories.suggest(userId, draft.description);
+    const { suggestions } = await this.deps.categories.suggest(userId, draft.description, draft.type);
     return {
       draft,
       suggestions: suggestions.map(({ categoryId, name, confidence }) => ({ categoryId, name, confidence })),
@@ -212,7 +247,11 @@ export class TransactionService {
       if (!source) throw errors.notFound("Transação");
       const base: TransactionState = { ...stateOf(source), archived: false, date: await this.today(userId) };
       // Categoria excluída depois do registro original não é copiada.
-      if (base.categoryId && overrides.categoryId === undefined && !(await this.deps.categories.isAssignable(userId, base.categoryId, tx))) {
+      if (
+        base.categoryId &&
+        overrides.categoryId === undefined &&
+        !(await this.deps.categories.findAssignable(userId, base.categoryId, tx))
+      ) {
         base.categoryId = null;
       }
       const state = await this.resolveState(tx, userId, { ...overrides, archived: false }, base);
@@ -302,7 +341,10 @@ export class TransactionService {
     return todayInTimeZone(this.deps.clock.now(), timezone);
   }
 
-  /** Aplica a entrada sobre um estado base, validando posse de carteira, categoria e tags. */
+  /**
+   * Aplica a entrada sobre um estado base, validando posse de carteira, categoria e tags, e a
+   * coerência entre o tipo da transação e o da categoria (ex.: "Salário" só em receitas).
+   */
   private async resolveState(
     tx: DbTransaction,
     userId: string,
@@ -311,10 +353,14 @@ export class TransactionService {
   ): Promise<TransactionState> {
     const { wallets, categories, tags } = this.deps;
 
+    const type = input.type ?? base?.type;
+    const description = input.description ?? base?.description;
+    if (!type || !description) throw errors.validation();
+
     let walletId = base?.walletId;
     if (input.walletId !== undefined && input.walletId !== base?.walletId) {
       const wallet = await wallets.findOwned(userId, input.walletId, tx);
-      if (!wallet) throw errors.unprocessable("INVALID_WALLET", "Carteira inexistente.");
+      if (!wallet) throw errors.unprocessable("INVALID_WALLET", "Carteira inexistente.", "walletId");
       walletId = wallet.id;
     }
     if (!walletId) {
@@ -324,15 +370,18 @@ export class TransactionService {
     }
 
     let categoryId = base?.categoryId ?? null;
-    if (input.categoryId !== undefined && input.categoryId !== categoryId) {
-      if (input.categoryId !== null) await categories.assertAssignable(userId, input.categoryId, tx);
-      categoryId = input.categoryId;
+    const categoryChanged = input.categoryId !== undefined && input.categoryId !== categoryId;
+    if (categoryChanged) categoryId = input.categoryId ?? null;
+    const typeChanged = base !== null && type !== base.type;
+    if (categoryId !== null && (categoryChanged || typeChanged)) {
+      // Categoria nova precisa estar disponível; se só o tipo mudou, uma categoria já excluída é mantida.
+      const category = categoryChanged
+        ? await categories.assertAssignable(userId, categoryId, tx)
+        : await categories.findAssignable(userId, categoryId, tx);
+      if (category) categories.assertAcceptsType(category, type);
     }
 
     const tagIds = input.tags !== undefined ? await tags.resolveNames(tx, userId, input.tags) : (base?.tagIds ?? []);
-    const type = input.type ?? base?.type;
-    const description = input.description?.trim() ?? base?.description;
-    if (!type || !description) throw errors.validation("Tipo e descrição são obrigatórios.");
 
     return {
       walletId,
@@ -347,7 +396,7 @@ export class TransactionService {
   }
 
   private async insertTransaction(tx: DbTransaction, userId: string, state: TransactionState): Promise<string> {
-    if (state.amountCents <= 0) throw errors.validation("O valor deve ser maior que zero.");
+    if (state.amountCents <= 0) throw errors.invalidField("amount", "O valor deve ser maior que zero.");
     const id = randomUUID();
     await this.deps.transactions.insert({ ...state, id, userId, createdAt: this.deps.clock.now() }, tx);
     await this.deps.wallets.applyBalanceDeltas(tx, userId, addDelta(new Map(), state.walletId, balanceEffect(state)));

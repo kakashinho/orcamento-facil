@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, ne } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, ne } from "drizzle-orm";
 import type { DbTransaction } from "../../../infrastructure/database/client.js";
 import { Repository } from "../../../infrastructure/database/repository.js";
 import { sessions } from "../../../infrastructure/database/schema.js";
@@ -53,6 +53,12 @@ export class SessionRepository extends Repository {
           exceptFamilyId ? ne(sessions.familyId, exceptFamilyId) : undefined,
         ),
       );
+  }
+
+  /** Limpeza: refresh tokens vencidos não servem nem para detectar reuso — saem da tabela. */
+  async deleteExpired(now: Date): Promise<number> {
+    const result = await this.db.delete(sessions).where(lt(sessions.expiresAt, now));
+    return result.rowCount ?? 0;
   }
 
   /** A sessão vale enquanto houver um refresh token ativo e não expirado na família. */

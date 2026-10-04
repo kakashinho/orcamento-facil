@@ -402,6 +402,36 @@ export class TransactionRepository extends Repository {
     }));
   }
 
+  /** Transações ativas de um tipo que usam a categoria (para restringir o tipo da categoria). */
+  async countActiveByCategoryAndType(userId: string, categoryId: string, type: TransactionType): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.categoryId, categoryId),
+          eq(transactions.type, type),
+          isNull(transactions.deletedAt),
+        ),
+      );
+    return row?.value ?? 0;
+  }
+
+  /** Meses com transações e a quantidade em cada um, do mais recente ao mais antigo (R26). */
+  async listMonths(
+    userId: string,
+    filters: Pick<TransactionFilters, "walletId" | "archived">,
+  ): Promise<Array<{ month: string; count: number }>> {
+    const month = sql<string>`to_char(${transactions.date}, 'YYYY-MM')`;
+    return this.db
+      .select({ month, count: sql<number>`count(*)::int` })
+      .from(transactions)
+      .where(and(...this.conditions(userId, filters)))
+      .groupBy(month)
+      .orderBy(desc(month));
+  }
+
   /** Descrições já categorizadas pelo usuário — "memória" da sugestão de categoria (R44). */
   async recentCategorized(userId: string, limit: number): Promise<Array<{ description: string; categoryId: string }>> {
     const rows = await this.db

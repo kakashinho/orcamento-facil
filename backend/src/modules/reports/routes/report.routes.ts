@@ -8,6 +8,7 @@ export function reportRoutes(controller: ReportController, guards: HttpGuards): 
   return async (app) => {
     app.addHook("onRequest", guards.authenticate);
 
+    app.get("/overview", { schema: schemas.overview }, controller.overview);
     app.get("/statement", { schema: schemas.statement }, controller.statement);
     app.get("/statement/pdf", { schema: schemas.statementPdf }, controller.statementPdf);
     app.get("/cash-flow", { schema: schemas.cashFlow }, controller.cashFlow);

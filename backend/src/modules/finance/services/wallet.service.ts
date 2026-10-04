@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction, TransactionRunner } from "../../../infrastructure/database/client.js";
-import { errors } from "../../../shared/errors/app-error.js";
+import { errors, fieldIssue } from "../../../shared/errors/app-error.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { fromCents, toCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
@@ -51,7 +51,8 @@ export class WalletService {
   constructor(private readonly deps: WalletServiceDeps) {}
 
   private nameTaken(): never {
-    throw errors.conflict("WALLET_NAME_TAKEN", "Você já possui uma carteira com esse nome.");
+    const message = "Você já possui uma carteira com esse nome.";
+    throw errors.conflict("WALLET_NAME_TAKEN", message, [fieldIssue("name", message)]);
   }
 
   async list(userId: string): Promise<WalletListResponseDto> {
@@ -69,7 +70,7 @@ export class WalletService {
     const { wallets, users, exchangeRates, runner, clock } = this.deps;
     const preferences = await users.getPreferences(userId);
     const currency = input.currency ?? preferences.primaryCurrency;
-    exchangeRates.assertCurrency(currency);
+    exchangeRates.assertCurrency(currency, "currency");
     const initialCents = toCents(input.initialBalance ?? 0, "initialBalance");
     const id = randomUUID();
     const now = clock.now();
@@ -115,14 +116,12 @@ export class WalletService {
         if (input.type !== undefined) changes.type = input.type;
 
         if (input.currency !== undefined && input.currency !== wallet.currency) {
-          exchangeRates.assertCurrency(input.currency);
+          exchangeRates.assertCurrency(input.currency, "currency");
           const movements =
             (await transactions.countByWallet(walletId, false, tx)) + (await transfers.countByWallet(walletId, false, tx));
           if (movements > 0) {
-            throw errors.conflict(
-              "WALLET_HAS_MOVEMENTS",
-              "Não é possível alterar a moeda de uma carteira que já possui movimentações.",
-            );
+            const message = "Não é possível alterar a moeda de uma carteira que já possui movimentações.";
+            throw errors.conflict("WALLET_HAS_MOVEMENTS", message, [fieldIssue("currency", message)]);
           }
           changes.currency = input.currency;
         }

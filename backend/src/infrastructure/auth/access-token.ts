@@ -48,6 +48,7 @@ export class AccessTokenService {
     return { token: this.signer({ ...claims }), expiresIn: this.ttlSeconds };
   }
 
+  /** Assinatura ou formato inválido → INVALID_TOKEN; token íntegro, mas vencido → TOKEN_EXPIRED. */
   verify(token: string): AccessTokenClaims {
     let payload: Record<string, unknown>;
     try {
@@ -55,16 +56,17 @@ export class AccessTokenService {
     } catch {
       throw errors.invalidToken();
     }
-    const now = Math.floor(this.clock.now().getTime() / 1000);
-    const valid =
+    const wellFormed =
       payload.typ === "access" &&
       typeof payload.sub === "string" &&
       typeof payload.sid === "string" &&
       (payload.role === "user" || payload.role === "admin") &&
-      typeof payload.exp === "number" &&
-      payload.exp > now;
-    if (!valid) {
+      typeof payload.exp === "number";
+    if (!wellFormed) {
       throw errors.invalidToken();
+    }
+    if ((payload.exp as number) <= Math.floor(this.clock.now().getTime() / 1000)) {
+      throw errors.tokenExpired();
     }
     return payload as unknown as AccessTokenClaims;
   }

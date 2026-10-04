@@ -4,9 +4,24 @@ import { Repository } from "../../../infrastructure/database/repository.js";
 import { categories } from "../../../infrastructure/database/schema.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { isUniqueViolation } from "../../../shared/errors/pg-errors.js";
-import type { Category } from "../types/category.types.js";
+import type { Category, CategoryType } from "../types/category.types.js";
 
 const UNIQUE_NAME = "categories_user_name_uq";
+
+const columns = {
+  id: categories.id,
+  userId: categories.userId,
+  systemKey: categories.systemKey,
+  name: categories.name,
+  type: categories.type,
+  deletedAt: categories.deletedAt,
+};
+
+type CategoryRow = { [K in keyof typeof columns]: (typeof categories.$inferSelect)[K] };
+
+function toCategory(row: CategoryRow): Category {
+  return { ...row, type: row.type === "income" || row.type === "expense" ? row.type : null };
+}
 
 export class CategoryRepository extends Repository {
   /** Predefinidas + personalizadas ativas do usuário. */
@@ -15,53 +30,43 @@ export class CategoryRepository extends Repository {
   }
 
   async listVisible(userId: string): Promise<Category[]> {
-    return this.db
-      .select({
-        id: categories.id,
-        userId: categories.userId,
-        systemKey: categories.systemKey,
-        name: categories.name,
-        deletedAt: categories.deletedAt,
-      })
-      .from(categories)
-      .where(this.visibleTo(userId));
+    const rows = await this.db.select(columns).from(categories).where(this.visibleTo(userId));
+    return rows.map(toCategory);
   }
 
   async findVisible(userId: string, categoryId: string, tx?: DbTransaction): Promise<Category | undefined> {
     const [row] = await this.executor(tx)
-      .select({
-        id: categories.id,
-        userId: categories.userId,
-        systemKey: categories.systemKey,
-        name: categories.name,
-        deletedAt: categories.deletedAt,
-      })
+      .select(columns)
       .from(categories)
       .where(and(eq(categories.id, categoryId), this.visibleTo(userId)));
-    return row;
+    return row ? toCategory(row) : undefined;
   }
 
-  async insert(userId: string, name: string, now: Date): Promise<Category> {
+  async insert(userId: string, input: { name: string; type: CategoryType | null }, now: Date): Promise<Category> {
     try {
       const [row] = await this.db
         .insert(categories)
-        .values({ userId, name, createdAt: now, updatedAt: now })
-        .returning();
-      return row!;
+        .values({ userId, name: input.name, type: input.type, createdAt: now, updatedAt: now })
+        .returning(columns);
+      return toCategory(row!);
     } catch (error) {
       if (isUniqueViolation(error, UNIQUE_NAME)) throw new DuplicateEntryError("name");
       throw error;
     }
   }
 
-  async rename(categoryId: string, name: string, now: Date): Promise<Category> {
+  async update(
+    categoryId: string,
+    changes: { name?: string; type?: CategoryType | null },
+    now: Date,
+  ): Promise<Category> {
     try {
       const [row] = await this.db
         .update(categories)
-        .set({ name, updatedAt: now })
+        .set({ ...changes, updatedAt: now })
         .where(eq(categories.id, categoryId))
-        .returning();
-      return row!;
+        .returning(columns);
+      return toCategory(row!);
     } catch (error) {
       if (isUniqueViolation(error, UNIQUE_NAME)) throw new DuplicateEntryError("name");
       throw error;

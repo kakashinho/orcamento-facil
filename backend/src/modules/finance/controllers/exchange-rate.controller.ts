@@ -15,4 +15,8 @@ export class ExchangeRateController {
     const { amount, from, to } = request.query;
     return reply.send(await this.exchangeRates.convertAmount(amount, from, to));
   };
+
+  currencies = async (_request: ZodRequest<Schemas["currencies"]>, reply: ZodReply<Schemas["currencies"]>) => {
+    return reply.send(await this.exchangeRates.listCurrencies());
+  };
 }

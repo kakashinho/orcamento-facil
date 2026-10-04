@@ -2,7 +2,7 @@ import type { TransactionRunner } from "../../../infrastructure/database/client.
 import type { EventLogger } from "../../../infrastructure/logging/event-logger.js";
 import { AppError, errors } from "../../../shared/errors/app-error.js";
 import type { UndoResponseDto } from "../schemas/history.schema.js";
-import { type HistoryAction, UNDO_NOT_POSSIBLE, type UndoHandlers } from "../types/history.types.js";
+import { HISTORY_LABELS, type HistoryAction, UNDO_NOT_POSSIBLE, type UndoHandlers } from "../types/history.types.js";
 import type { ActionHistoryService } from "./action-history.service.js";
 
 const MESSAGES: Record<HistoryAction, string> = {
@@ -65,6 +65,7 @@ export class UndoService {
       undone: {
         id: entry.id,
         action: entry.action,
+        label: HISTORY_LABELS[entry.action],
         entityType: entry.entityType,
         entityId: entry.entityId,
         createdAt: entry.createdAt.toISOString(),

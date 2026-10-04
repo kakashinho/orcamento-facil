@@ -1,6 +1,6 @@
 # Orçamento Fácil — Backend (API RESTful)
 
-API em Node.js que atende o aplicativo Android (React Native) do Orçamento Fácil: autenticação, carteiras em várias moedas, transações, categorias, tags, transferências, desfazer, relatórios com PDF, câmbio, modo de manutenção e logs. Cobre os requisitos da Sprint 1 (`sources/requisitos-1sprint.txt`) que dependem do servidor.
+API em Node.js que atende o aplicativo Android (React Native) do Orçamento Fácil: autenticação (com senha ou biometria), carteiras em várias moedas, transações, categorias, tags, transferências, desfazer, tela inicial em uma requisição, relatórios com PDF, câmbio, modo de manutenção e logs. Cobre os requisitos da Sprint 1 (`sources/requisitos-1sprint.txt`) que dependem do servidor.
 
 | Para… | Veja |
 |---|---|
@@ -69,7 +69,11 @@ migrations pendentes e sobe a API (`HEALTHCHECK` em `/health`). Exigências de p
   gere uma nova chave com `DATA_ENCRYPTION_KEY_VERSION` maior e mova a antiga para `DATA_ENCRYPTION_PREVIOUS_KEYS`;
 - SMTP configurado (`SMTP_*`, `MAIL_FROM`) e `PUBLIC_BASE_URL` com o domínio público (link do e-mail);
 - TLS no Nginx/balanceador e `TRUST_PROXY=true`;
-- durante um deploy, `MAINTENANCE_MODE=true` (ou `PUT /api/admin/maintenance`) bloqueia operações de escrita (R72).
+- durante um deploy, `MAINTENANCE_MODE=true` (ou `PUT /api/admin/maintenance`) bloqueia operações de escrita (R72);
+- a limpeza de dados vencidos (sessões, links de recuperação, histórico e logs antigos) roda sozinha a cada
+  `HOUSEKEEPING_INTERVAL_MINUTES`; retenções em `HISTORY_RETENTION_DAYS` e `LOG_RETENTION_DAYS`.
+
+O `.dockerignore` mantém fora da imagem o `.env`, o `node_modules` local e os artefatos de build.
 
 ## Estrutura
 

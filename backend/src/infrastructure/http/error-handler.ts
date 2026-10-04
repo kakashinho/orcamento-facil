@@ -1,7 +1,7 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from "fastify-type-provider-zod";
 import type { EventLogger } from "../logging/event-logger.js";
-import { AppError } from "../../shared/errors/app-error.js";
+import { AppError, type FieldIssue, type FieldLocation } from "../../shared/errors/app-error.js";
 import {
   PG_CHECK_VIOLATION,
   PG_FOREIGN_KEY_VIOLATION,
@@ -21,15 +21,66 @@ function send(reply: FastifyReply, body: ErrorBody, headers: Record<string, stri
   return reply.headers(headers).status(body.statusCode).send(body);
 }
 
-const FASTIFY_CODES: Record<number, string> = {
-  400: "BAD_REQUEST",
-  404: "NOT_FOUND",
-  405: "METHOD_NOT_ALLOWED",
-  406: "NOT_ACCEPTABLE",
-  413: "PAYLOAD_TOO_LARGE",
-  415: "UNSUPPORTED_MEDIA_TYPE",
-  429: "RATE_LIMITED",
+/** Erros do Fastify e dos plugins, com código estável e mensagem em português. */
+const FRAMEWORK_ERRORS: Record<string, { statusCode: number; code: string; message: string }> = {
+  FST_ERR_CTP_INVALID_JSON_BODY: {
+    statusCode: 400,
+    code: "INVALID_JSON",
+    message: "O corpo da requisição não é um JSON válido.",
+  },
+  FST_ERR_CTP_EMPTY_JSON_BODY: { statusCode: 400, code: "EMPTY_BODY", message: "O corpo da requisição está vazio." },
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: {
+    statusCode: 415,
+    code: "UNSUPPORTED_MEDIA_TYPE",
+    message: "Formato não suportado. Envie o corpo em JSON (Content-Type: application/json).",
+  },
+  FST_ERR_CTP_BODY_TOO_LARGE: {
+    statusCode: 413,
+    code: "PAYLOAD_TOO_LARGE",
+    message: "O corpo da requisição excede o tamanho máximo permitido (1 MB).",
+  },
+  FST_ERR_CTP_INVALID_CONTENT_LENGTH: {
+    statusCode: 400,
+    code: "INVALID_CONTENT_LENGTH",
+    message: "O cabeçalho Content-Length não corresponde ao corpo enviado.",
+  },
+  FST_ERR_BAD_URL: { statusCode: 400, code: "INVALID_URL", message: "A URL da requisição é inválida." },
+  FST_CP_ERR_INVALID_CONTENT_ENCODING: {
+    statusCode: 415,
+    code: "UNSUPPORTED_CONTENT_ENCODING",
+    message: "Content-Encoding não suportado. Use br, gzip ou deflate.",
+  },
+  FST_CP_ERR_INVALID_CONTENT: {
+    statusCode: 400,
+    code: "INVALID_COMPRESSED_BODY",
+    message: "Não foi possível descompactar o corpo da requisição.",
+  },
 };
+
+interface ZodValidationItem {
+  keyword: string;
+  instancePath: string;
+  message: string;
+  params?: { keys?: string[]; expected?: string };
+}
+
+/** Converte os erros do schema (DTO) em `details`: um item por campo, com caminho legível. */
+function toFieldIssues(location: FieldLocation, items: ZodValidationItem[]): FieldIssue[] {
+  return items.flatMap((item): FieldIssue[] => {
+    const base = item.instancePath.split("/").filter(Boolean);
+    if (item.keyword === "unrecognized_keys") {
+      return (item.params?.keys ?? []).map((key) => ({
+        location,
+        path: [...base, key].join("."),
+        message: "Campo não reconhecido.",
+      }));
+    }
+    if (base.length === 0 && location === "body" && item.keyword === "invalid_type" && item.params?.expected === "object") {
+      return [{ location, message: "Envie os dados no corpo da requisição, em JSON." }];
+    }
+    return [{ location, ...(base.length > 0 ? { path: base.join(".") } : {}), message: item.message }];
+  });
+}
 
 /** Formato único de erro da API: { statusCode, code, message, details? }. */
 export function createErrorHandler(eventLog: EventLogger) {
@@ -48,16 +99,12 @@ export function createErrorHandler(eventLog: EventLogger) {
     }
 
     if (hasZodFastifySchemaValidationErrors(error)) {
-      const where = (error as { validationContext?: string }).validationContext;
+      const location = ((error as { validationContext?: string }).validationContext ?? "body") as FieldLocation;
       return send(reply, {
         statusCode: 400,
         code: "VALIDATION_ERROR",
         message: "Dados inválidos na requisição.",
-        details: error.validation.map((issue) => ({
-          location: where,
-          path: issue.instancePath.replace(/^\//, "").replaceAll("/", ".") || undefined,
-          message: issue.message,
-        })),
+        details: toFieldIssues(location, error.validation as unknown as ZodValidationItem[]),
       });
     }
 
@@ -80,13 +127,20 @@ export function createErrorHandler(eventLog: EventLogger) {
       return send(reply, { statusCode: 400, code: "VALIDATION_ERROR", message: "Dados inválidos na requisição." });
     }
 
+    const known = FRAMEWORK_ERRORS[(error as FastifyError).code ?? ""];
+    if (known) return send(reply, known);
+
     const statusCode = (error as FastifyError).statusCode;
-    if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
+    if (statusCode === 429) {
       return send(reply, {
         statusCode,
-        code: FASTIFY_CODES[statusCode] ?? "BAD_REQUEST",
-        message: statusCode === 429 ? "Muitas requisições. Aguarde um instante e tente novamente." : error.message,
+        code: "RATE_LIMITED",
+        message: "Muitas tentativas em pouco tempo. Aguarde um instante e tente novamente.",
       });
+    }
+    if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 500) {
+      request.log.info({ err: error }, "Requisição inválida");
+      return send(reply, { statusCode, code: "BAD_REQUEST", message: "Requisição inválida." });
     }
 
     request.log.error({ err: error }, "Erro não tratado");

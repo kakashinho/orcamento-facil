@@ -1,6 +1,6 @@
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction } from "../../../infrastructure/database/client.js";
-import { errors } from "../../../shared/errors/app-error.js";
+import { errors, fieldIssue } from "../../../shared/errors/app-error.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import type { TagRepository } from "../repositories/tag.repository.js";
 import type { TagListResponseDto, TagResponseDto } from "../schemas/tag.schema.js";
@@ -14,7 +14,8 @@ export class TagService {
   ) {}
 
   private nameTaken(): never {
-    throw errors.conflict("TAG_NAME_TAKEN", "Você já possui uma tag com esse nome.");
+    const message = "Você já possui uma tag com esse nome.";
+    throw errors.conflict("TAG_NAME_TAKEN", message, [fieldIssue("name", message)]);
   }
 
   async list(userId: string): Promise<TagListResponseDto> {
@@ -54,7 +55,7 @@ export class TagService {
       if (name.length > 0 && !unique.has(name.toLowerCase())) unique.set(name.toLowerCase(), name);
     }
     if (unique.size > MAX_TAGS_PER_TRANSACTION) {
-      throw errors.validation(`Uma transação pode ter no máximo ${MAX_TAGS_PER_TRANSACTION} tags.`);
+      throw errors.invalidField("tags", `Uma transação pode ter no máximo ${MAX_TAGS_PER_TRANSACTION} tags.`);
     }
     return this.tags.upsertByNames(userId, [...unique.values()], this.clock.now(), tx);
   }

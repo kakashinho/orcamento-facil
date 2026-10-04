@@ -53,7 +53,8 @@ comandos indicados dentro do arquivo.
 3. Clique em **Authorize** (cadeado no topo), cole o token e confirme.
 4. Agora as rotas com cadeado funcionam. Teste **GET /api/wallets** (sua carteira padrão já existe).
 
-O access token vale 15 minutos. Quando expirar, faça login de novo ou use **POST /api/auth/refresh** com o `refreshToken`.
+O access token vale 15 minutos. Quando expirar, a API responde `401 TOKEN_EXPIRED`: use
+**POST /api/auth/refresh** com o `refreshToken` (ou faça login de novo).
 
 ### Rodando os testes
 
@@ -100,17 +101,17 @@ Não precisa do banco rodando. Saída (trecho):
 Transações
   GET    🔒 /api/transactions/                       Listar transações (R09, R10, R26, R52, R70)
   POST   🔒 /api/transactions/                       Registrar transação (R06)
-  GET    🔒 /api/transactions/summary                Totais de receitas e despesas do filtro, por moeda
-  POST   🔒 /api/transactions/parse                  Interpretar frase falada em rascunho de transação
+  GET    🔒 /api/transactions/summary                Receitas, despesas e saldo do filtro (ex.: resumo do mês — R26)
+  GET    🔒 /api/transactions/months                 Meses com transações, do mais recente ao mais antigo (navegação do R26)
+  POST   🔒 /api/transactions/parse                  Interpretar frase falada em rascunho de transação (apoio ao R65)
   GET    🔒 /api/transactions/{id}                   Detalhar transação
   PATCH  🔒 /api/transactions/{id}                   Editar transação (R11)
   DELETE 🔒 /api/transactions/{id}                   Excluir transação (R12)
-  POST   🔒 /api/transactions/{id}/duplicate         Duplicar transação (R48)
 ...
 🔒 = exige header Authorization: Bearer <accessToken>
 ```
 
-São 55 rotas.
+São 64 rotas.
 
 ### 2.3 No código
 
@@ -119,6 +120,7 @@ Cada recurso tem um arquivo em `routes/`, e o [src/app.ts](src/app.ts) registra 
 | Prefixo | Arquivo de rotas |
 |---|---|
 | `/api/auth` | [modules/auth/routes/auth.routes.ts](src/modules/auth/routes/auth.routes.ts) |
+| `/api/auth/biometric` | [modules/auth/routes/biometric.routes.ts](src/modules/auth/routes/biometric.routes.ts) |
 | `/api/users` | [modules/auth/routes/user.routes.ts](src/modules/auth/routes/user.routes.ts) |
 | `/api/wallets` | [modules/finance/routes/wallet.routes.ts](src/modules/finance/routes/wallet.routes.ts) |
 | `/api/categories` | [modules/finance/routes/category.routes.ts](src/modules/finance/routes/category.routes.ts) |
@@ -126,6 +128,7 @@ Cada recurso tem um arquivo em `routes/`, e o [src/app.ts](src/app.ts) registra 
 | `/api/transactions` | [modules/finance/routes/transaction.routes.ts](src/modules/finance/routes/transaction.routes.ts) |
 | `/api/transfers` | [modules/finance/routes/transfer.routes.ts](src/modules/finance/routes/transfer.routes.ts) |
 | `/api/exchange-rates` | [modules/finance/routes/exchange-rate.routes.ts](src/modules/finance/routes/exchange-rate.routes.ts) |
+| `/api/currencies` | [modules/finance/routes/currency.routes.ts](src/modules/finance/routes/currency.routes.ts) |
 | `/api/history` | [modules/history/routes/history.routes.ts](src/modules/history/routes/history.routes.ts) |
 | `/api/reports` | [modules/reports/routes/report.routes.ts](src/modules/reports/routes/report.routes.ts) |
 | `/api/admin` | [modules/system/routes/admin.routes.ts](src/modules/system/routes/admin.routes.ts) |
@@ -161,19 +164,19 @@ Na pasta `schemas/` de cada módulo. Cada arquivo tem três blocos, sempre na me
 // modules/finance/schemas/transaction.schema.ts
 
 // ---------- Request DTOs ----------
-export const createTransactionRequestSchema = z.object({
-  type: z.enum(["income", "expense"]),
+export const createTransactionRequestSchema = z.strictObject({   // campo desconhecido é erro
+  type: transactionType,                  // "income" | "expense"
   amount: positiveAmount,                 // > 0, até 2 casas decimais
-  description: z.string().min(1).max(200),
-  date: isoDate.optional(),               // AAAA-MM-DD que existe no calendário
-  walletId: z.uuid().optional(),
-  categoryId: z.uuid().nullable().optional(),
-  tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+  description: requiredText(200, "Informe a descrição."),  // tira espaços antes de validar
+  date: isoDate.optional(),               // AAAA-MM-DD real, entre 1900 e 2100
+  walletId: uuid().optional(),
+  categoryId: uuid().nullable().optional(),
+  tags: tagNames.optional(),              // até 10 nomes de tag
 });
 export type CreateTransactionRequestDto = z.infer<typeof createTransactionRequestSchema>;
 
 // ---------- Response DTOs ----------
-export const transactionResponseSchema = z.object({ id: z.string(), amount: z.number(), /* ... */ });
+export const transactionResponseSchema = z.object({ id: responseId, amount: z.number(), /* ... */ });
 export type TransactionResponseDto = z.infer<typeof transactionResponseSchema>;
 
 // ---------- Schemas das rotas (validação + documentação) ----------
@@ -203,12 +206,22 @@ por engano.
 
 | Camada | Onde | O que verifica | Resposta |
 |---|---|---|---|
-| **1. Formato** (DTO) | `schemas/` e [infrastructure/http/common-schemas.ts](src/infrastructure/http/common-schemas.ts) | Campo obrigatório, tipo, tamanho, data válida, moeda ISO, UUID, valor > 0 | `400 VALIDATION_ERROR` |
-| **2. Regra de negócio** | `services/` | Carteira existe e é sua, nome duplicado, senha forte, moeda suportada | `4xx` com código específico (`INVALID_WALLET`, `WALLET_NAME_TAKEN`…) |
+| **1. Formato** (DTO) | `schemas/` e [infrastructure/http/common-schemas.ts](src/infrastructure/http/common-schemas.ts) | Campo obrigatório, tipo, tamanho, campo desconhecido, data real e plausível, moeda suportada, fuso válido, UUID, valor > 0 com 2 casas, período coerente (`from` ≤ `to`) | `400 VALIDATION_ERROR` |
+| **2. Regra de negócio** | `services/` | Carteira existe e é sua, categoria compatível com o tipo da transação, nome duplicado, senha forte, senha atual correta | `409`/`422` com código específico (`INVALID_WALLET`, `CATEGORY_TYPE_MISMATCH`, `WALLET_NAME_TAKEN`…) |
 | **3. Banco** (constraints) | [infrastructure/database/schema/](src/infrastructure/database/schema/) → migrations | Unicidade, chave estrangeira, CHECK | `409` / `400` |
 
 A camada 1 só olha o formato e nunca consulta o banco. "Esse e-mail já existe?" é regra de negócio
 (camada 2), com a camada 3 como última garantia.
+
+Regras gerais dos DTOs, iguais em toda a API:
+
+- **Estritos:** campo desconhecido é erro (`"categoryID"` no lugar de `"categoryId"` não passa calado).
+- **Textos sem espaços nas pontas:** `"   "` não é um nome válido; `"  Feira "` vira `"Feira"`.
+- **Normalização do que vem do teclado do celular:** e-mail em minúsculas e sem espaços; moeda `" usd "` vira `"USD"`.
+- **Mensagens em português**, prontas para aparecer embaixo do campo. A configuração geral fica em [infrastructure/http/validation-messages.ts](src/infrastructure/http/validation-messages.ts).
+
+Erros da camada 2 também trazem `details` quando a causa é um campo (ex.: `INVALID_WALLET` aponta
+`walletId`). Assim o app destaca o campo do mesmo jeito para os dois tipos de erro.
 
 ### 3.3 Veja acontecendo
 
@@ -222,10 +235,10 @@ HTTP 400
   "code": "VALIDATION_ERROR",
   "message": "Dados inválidos na requisição.",
   "details": [
-    { "location": "body", "path": "type", "message": "Opção inválida: esperava uma das seguintes opções: \"income\"|\"expense\"" },
-    { "location": "body", "path": "amount", "message": "O valor deve ser maior que zero" },
-    { "location": "body", "path": "description", "message": "Pequeno demais: esperava que o texto tivesse >= 1 caracteres" },
-    { "location": "body", "path": "date", "message": "Data inválida" }
+    { "location": "body", "path": "type", "message": "Valor inválido. Use: income, expense." },
+    { "location": "body", "path": "amount", "message": "O valor deve ser maior que zero." },
+    { "location": "body", "path": "description", "message": "Informe a descrição." },
+    { "location": "body", "path": "date", "message": "Data inválida." }
   ]
 }
 ```
@@ -236,7 +249,12 @@ Uma regra de negócio (carteira que não existe ou é de outro usuário):
 
 ```json
 HTTP 422
-{ "statusCode": 422, "code": "INVALID_WALLET", "message": "Carteira inexistente." }
+{
+  "statusCode": 422,
+  "code": "INVALID_WALLET",
+  "message": "Carteira inexistente.",
+  "details": [{ "location": "body", "path": "walletId", "message": "Carteira inexistente." }]
+}
 ```
 
 Todo erro tem o formato `{ statusCode, code, message, details? }`, garantido por
@@ -256,11 +274,11 @@ src/
 ├── config/env.ts      lê e valida as variáveis de ambiente
 │
 ├── modules/                       ⭐ um módulo por domínio
-│   ├── auth/          cadastro, login, sessão, recuperação de senha, perfil
-│   ├── finance/       carteiras, categorias, tags, transações, transferências, câmbio
+│   ├── auth/          cadastro, login (senha e biometria), sessão, recuperação de senha, perfil
+│   ├── finance/       carteiras, categorias, tags, transações, transferências, câmbio e moedas
 │   ├── history/       histórico de ações e "desfazer"
-│   ├── reports/       extrato, PDF, fluxo de caixa, gráficos
-│   └── system/        saúde, status, manutenção, logs administrativos
+│   ├── reports/       visão geral da tela inicial, extrato, PDF, fluxo de caixa, gráficos
+│   └── system/        saúde, status, manutenção, logs e limpeza periódica
 │
 │   cada módulo tem as mesmas pastas:
 │   ├── routes/        declaram os endpoints (caminho + schema + controller)
@@ -272,8 +290,8 @@ src/
 │
 ├── infrastructure/    peças técnicas usadas pelos módulos
 │   ├── database/      conexão, transação, base dos repositories, tabelas e migrator
-│   ├── http/          autenticação (hook), tratamento de erros, validadores comuns
-│   ├── auth/          JWT e hash de senha
+│   ├── http/          autenticação (hook), manutenção, tratamento e documentação de erros, validadores comuns
+│   ├── auth/          JWT, hash de senha e verificação da assinatura biométrica do aparelho
 │   ├── crypto/        criptografia dos valores financeiros (AES-256-GCM)
 │   ├── logging/       logger e registro de eventos
 │   ├── mail/          envio de e-mail

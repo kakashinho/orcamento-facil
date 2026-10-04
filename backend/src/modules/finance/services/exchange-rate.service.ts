@@ -6,10 +6,20 @@ import type {
 import type { EventLogger } from "../../../infrastructure/logging/event-logger.js";
 import { errors } from "../../../shared/errors/app-error.js";
 import { convertCents, fromCents, isSupportedCurrency, normalizeRate, toCents } from "../../../shared/utils/money.js";
-import type { ConversionResultDto, RateTableDto } from "../types/exchange-rate.types.js";
+import type {
+  ConversionResponseDto,
+  CurrencyListResponseDto,
+  RateTableResponseDto,
+} from "../schemas/exchange-rate.schema.js";
 
 /** Moeda de referência da tabela em cache; taxas cruzadas são derivadas dela. */
 const REFERENCE_CURRENCY = "USD";
+
+/** Moedas oferecidas quando o provedor está fora e ainda não há cache (ex.: logo após um deploy). */
+const FALLBACK_CURRENCIES = [
+  "BRL", "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "CNY", "ARS", "CLP", "COP", "MXN", "PEN", "UYU",
+  "PYG", "BOB", "VES", "AOA", "MZN", "CVE", "INR", "KRW", "NZD", "SEK", "NOK", "DKK", "PLN", "ZAR", "AED",
+];
 
 export interface Quote {
   from: string;
@@ -38,10 +48,38 @@ export class ExchangeRateService {
     private readonly eventLog: EventLogger,
   ) {}
 
-  assertCurrency(code: string): void {
+  /** `field`: campo do corpo que trouxe a moeda, para o app destacá-lo. */
+  assertCurrency(code: string, field?: string): void {
     if (!isSupportedCurrency(code)) {
-      throw errors.unprocessable("UNSUPPORTED_CURRENCY", `Moeda não suportada: ${code}.`);
+      throw errors.unprocessable("UNSUPPORTED_CURRENCY", `Moeda não suportada: ${code}.`, field);
     }
+  }
+
+  /**
+   * R28/R56: moedas que o app pode oferecer — aceitas na validação e com cotação no provedor —
+   * com o nome em português para o seletor.
+   */
+  async listCurrencies(): Promise<CurrencyListResponseDto> {
+    let codes: string[];
+    let updatedAt: Date;
+    let stale: boolean;
+    try {
+      const loaded = await this.loadTable();
+      codes = [loaded.table.base, ...Object.keys(loaded.table.rates)];
+      updatedAt = loaded.table.updatedAt;
+      stale = loaded.stale;
+    } catch {
+      // O cadastro não pode depender do provedor: sem cotação nem cache, oferece as moedas mais usadas.
+      codes = FALLBACK_CURRENCIES;
+      updatedAt = this.clock.now();
+      stale = true;
+    }
+    const names = new Intl.DisplayNames(["pt-BR"], { type: "currency" });
+    const data = [...new Set(codes)]
+      .filter(isSupportedCurrency)
+      .map((code) => ({ code, name: names.of(code) ?? code }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return { data, updatedAt: updatedAt.toISOString(), stale };
   }
 
   private async loadTable(): Promise<{ table: RateTable; stale: boolean }> {
@@ -104,7 +142,7 @@ export class ExchangeRateService {
   }
 
   /** Converte um valor decimal da API (ex.: 12.5) e devolve o DTO de resposta (R29). */
-  async convertAmount(amount: number, from: string, to: string): Promise<ConversionResultDto> {
+  async convertAmount(amount: number, from: string, to: string): Promise<ConversionResponseDto> {
     const { cents, quote } = await this.convert(toCents(amount), from, to);
     return {
       from,
@@ -118,7 +156,7 @@ export class ExchangeRateService {
   }
 
   /** Tabela de taxas a partir de uma moeda base, opcionalmente filtrada. */
-  async getRates(base: string, symbols?: string[]): Promise<RateTableDto> {
+  async getRates(base: string, symbols?: string[]): Promise<RateTableResponseDto> {
     this.assertCurrency(base);
     const { table, stale } = await this.loadTable();
     const baseRate = base === table.base ? 1 : table.rates[base];

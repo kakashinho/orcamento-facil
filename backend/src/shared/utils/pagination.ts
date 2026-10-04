@@ -20,5 +20,5 @@ export function decodeCursor<T extends Record<string, unknown>>(
   } catch {
     // cai no erro abaixo
   }
-  throw errors.validation("Cursor de paginação inválido.");
+  throw errors.invalidField("cursor", "Cursor de paginação inválido. Recomece a listagem sem o cursor.", "querystring");
 }

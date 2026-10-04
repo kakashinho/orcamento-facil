@@ -28,6 +28,15 @@ export interface AppLogRecord {
   createdAt: Date;
 }
 
+/**
+ * Tarefa de limpeza fornecida pelo módulo dono do dado (o system só agenda e registra):
+ * remove o que venceu até `now` e devolve quantos registros saíram.
+ */
+export interface HousekeepingTask {
+  name: string;
+  run(now: Date): Promise<number>;
+}
+
 export interface AppLogFilters {
   event?: string | undefined;
   level?: string | undefined;

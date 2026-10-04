@@ -1,6 +1,6 @@
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction } from "../../../infrastructure/database/client.js";
-import { errors } from "../../../shared/errors/app-error.js";
+import { errors, fieldIssue } from "../../../shared/errors/app-error.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { normalizeText } from "../../../shared/utils/text.js";
 import type { CategoryRepository } from "../repositories/category.repository.js";
@@ -9,8 +9,10 @@ import type {
   CategoryListResponseDto,
   CategoryResponseDto,
   CategorySuggestionsResponseDto,
+  CreateCategoryRequestDto,
+  UpdateCategoryRequestDto,
 } from "../schemas/category.schema.js";
-import type { Category } from "../types/category.types.js";
+import { acceptsType, type Category, type CategoryType, TYPE_LABEL } from "../types/category.types.js";
 import { suggestCategories } from "./category-suggester.js";
 
 const HISTORY_SAMPLE_SIZE = 500;
@@ -19,6 +21,7 @@ export function toCategoryResponseDto(category: Category): CategoryResponseDto {
   return {
     id: category.id,
     name: category.name,
+    type: category.type,
     predefined: category.userId === null,
     systemKey: category.systemKey,
   };
@@ -32,9 +35,11 @@ export class CategoryService {
     private readonly clock: Clock,
   ) {}
 
-  async list(userId: string): Promise<CategoryListResponseDto> {
+  /** Com `type`, só as categorias que aceitam esse tipo de transação (para o seletor do formulário). */
+  async list(userId: string, type?: CategoryType): Promise<CategoryListResponseDto> {
     const rows = await this.categories.listVisible(userId);
     const data = rows
+      .filter((category) => type === undefined || acceptsType(category, type))
       .map(toCategoryResponseDto)
       .sort((a, b) => Number(b.predefined) - Number(a.predefined) || a.name.localeCompare(b.name, "pt-BR"));
     return { data };
@@ -46,22 +51,22 @@ export class CategoryService {
     const visible = await this.categories.listVisible(userId);
     const clash = visible.find((category) => category.id !== ignoreId && normalizeText(category.name) === wanted);
     if (clash) {
-      throw errors.conflict(
-        "CATEGORY_NAME_TAKEN",
-        clash.userId === null ? "Já existe uma categoria predefinida com esse nome." : "Você já possui uma categoria com esse nome.",
-      );
+      const message =
+        clash.userId === null ? "Já existe uma categoria predefinida com esse nome." : "Você já possui uma categoria com esse nome.";
+      throw errors.conflict("CATEGORY_NAME_TAKEN", message, [fieldIssue("name", message)]);
     }
   }
 
   private nameTaken(): never {
-    throw errors.conflict("CATEGORY_NAME_TAKEN", "Você já possui uma categoria com esse nome.");
+    const message = "Você já possui uma categoria com esse nome.";
+    throw errors.conflict("CATEGORY_NAME_TAKEN", message, [fieldIssue("name", message)]);
   }
 
-  async create(userId: string, rawName: string): Promise<CategoryResponseDto> {
-    const name = rawName.trim();
-    await this.assertNameAvailable(userId, name);
+  async create(userId: string, input: CreateCategoryRequestDto): Promise<CategoryResponseDto> {
+    await this.assertNameAvailable(userId, input.name);
     try {
-      return toCategoryResponseDto(await this.categories.insert(userId, name, this.clock.now()));
+      const category = await this.categories.insert(userId, { name: input.name, type: input.type ?? null }, this.clock.now());
+      return toCategoryResponseDto(category);
     } catch (error) {
       if (error instanceof DuplicateEntryError) this.nameTaken();
       throw error;
@@ -77,12 +82,30 @@ export class CategoryService {
     return category;
   }
 
-  async rename(userId: string, categoryId: string, rawName: string): Promise<CategoryResponseDto> {
-    await this.findOwnedCustom(userId, categoryId);
-    const name = rawName.trim();
-    await this.assertNameAvailable(userId, name, categoryId);
+  /** Renomeia e/ou muda o tipo. Restringir o tipo exige que nenhuma transação do outro tipo a use. */
+  async update(userId: string, categoryId: string, input: UpdateCategoryRequestDto): Promise<CategoryResponseDto> {
+    const category = await this.findOwnedCustom(userId, categoryId);
+    const changes: { name?: string; type?: CategoryType | null } = {};
+
+    if (input.name !== undefined && input.name !== category.name) {
+      await this.assertNameAvailable(userId, input.name, categoryId);
+      changes.name = input.name;
+    }
+    if (input.type !== undefined && input.type !== category.type) {
+      if (input.type !== null) {
+        const other: CategoryType = input.type === "income" ? "expense" : "income";
+        const inUse = await this.transactions.countActiveByCategoryAndType(userId, categoryId, other);
+        if (inUse > 0) {
+          const message = `Existem ${inUse} ${TYPE_LABEL[other].plural} com esta categoria. Mude a categoria delas antes de restringi-la a ${TYPE_LABEL[input.type].plural}.`;
+          throw errors.conflict("CATEGORY_TYPE_IN_USE", message, [fieldIssue("type", message)]);
+        }
+      }
+      changes.type = input.type;
+    }
+    if (Object.keys(changes).length === 0) return toCategoryResponseDto(category);
+
     try {
-      return toCategoryResponseDto(await this.categories.rename(categoryId, name, this.clock.now()));
+      return toCategoryResponseDto(await this.categories.update(categoryId, changes, this.clock.now()));
     } catch (error) {
       if (error instanceof DuplicateEntryError) this.nameTaken();
       throw error;
@@ -94,19 +117,35 @@ export class CategoryService {
     await this.categories.softDelete(categoryId, this.clock.now());
   }
 
-  async isAssignable(userId: string, categoryId: string, tx?: DbTransaction): Promise<boolean> {
-    return (await this.categories.findVisible(userId, categoryId, tx)) !== undefined;
+  /** Categoria predefinida ou do usuário, ainda não excluída. */
+  findAssignable(userId: string, categoryId: string, tx?: DbTransaction): Promise<Category | undefined> {
+    return this.categories.findVisible(userId, categoryId, tx);
   }
 
-  /** A categoria precisa ser predefinida ou do usuário, e não excluída. */
-  async assertAssignable(userId: string, categoryId: string, tx?: DbTransaction): Promise<void> {
-    if (!(await this.isAssignable(userId, categoryId, tx))) {
-      throw errors.unprocessable("INVALID_CATEGORY", "Categoria inexistente ou indisponível.");
+  async assertAssignable(userId: string, categoryId: string, tx?: DbTransaction): Promise<Category> {
+    const category = await this.findAssignable(userId, categoryId, tx);
+    if (!category) {
+      throw errors.unprocessable("INVALID_CATEGORY", "Categoria inexistente ou excluída.", "categoryId");
+    }
+    return category;
+  }
+
+  /** Coerência: "Salário" (receitas) não pode classificar uma despesa, e vice-versa. */
+  assertAcceptsType(category: Category, type: CategoryType): void {
+    if (!acceptsType(category, type)) {
+      throw errors.unprocessable(
+        "CATEGORY_TYPE_MISMATCH",
+        `A categoria "${category.name}" é de ${TYPE_LABEL[category.type!].plural} e não pode ser usada em uma ${TYPE_LABEL[type].singular}.`,
+        "categoryId",
+      );
     }
   }
 
-  async suggest(userId: string, description: string): Promise<CategorySuggestionsResponseDto> {
-    const available = await this.categories.listVisible(userId);
+  /** R44: com `type`, sugere apenas categorias compatíveis com o tipo da transação. */
+  async suggest(userId: string, description: string, type?: CategoryType): Promise<CategorySuggestionsResponseDto> {
+    const available = (await this.categories.listVisible(userId)).filter(
+      (category) => type === undefined || acceptsType(category, type),
+    );
     const history = await this.transactions.recentCategorized(userId, HISTORY_SAMPLE_SIZE);
     return { suggestions: suggestCategories(description, available, history) };
   }

@@ -12,14 +12,18 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { z } from "zod";
 import type { Container } from "./container.js";
 import { createErrorHandler } from "./infrastructure/http/error-handler.js";
+import { documentErrorResponses } from "./infrastructure/http/error-responses.js";
+import { createMaintenanceGate } from "./infrastructure/http/maintenance-gate.js";
 import type { App } from "./infrastructure/http/types.js";
+import { configureValidationMessages } from "./infrastructure/http/validation-messages.js";
 import { authRoutes } from "./modules/auth/routes/auth.routes.js";
+import { biometricRoutes } from "./modules/auth/routes/biometric.routes.js";
 import { resetPasswordRoutes } from "./modules/auth/routes/reset-password.routes.js";
 import { userRoutes } from "./modules/auth/routes/user.routes.js";
 import { categoryRoutes } from "./modules/finance/routes/category.routes.js";
+import { currencyRoutes } from "./modules/finance/routes/currency.routes.js";
 import { exchangeRateRoutes } from "./modules/finance/routes/exchange-rate.routes.js";
 import { tagRoutes } from "./modules/finance/routes/tag.routes.js";
 import { transactionRoutes } from "./modules/finance/routes/transaction.routes.js";
@@ -30,22 +34,11 @@ import { reportRoutes } from "./modules/reports/routes/report.routes.js";
 import { adminRoutes } from "./modules/system/routes/admin.routes.js";
 import { systemRoutes } from "./modules/system/routes/system.routes.js";
 import { API_VERSION, DEFAULT_MAINTENANCE_MESSAGE } from "./modules/system/types/system.types.js";
-import { errors } from "./shared/errors/app-error.js";
-
-// Mensagens de validação padrão do Zod em português do Brasil.
-z.config(z.locales.ptBR());
-
-const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-/** Rotas de escrita liberadas durante a manutenção: entrar/sair e a própria administração. */
-const MAINTENANCE_EXEMPT = new Set(["/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/logout-all"]);
-
-function isMaintenanceExempt(path: string): boolean {
-  return MAINTENANCE_EXEMPT.has(path) || path.startsWith("/api/admin/") || !(path.startsWith("/api/") || path === "/reset-password");
-}
 
 /** Monta o Fastify: plugins, hooks globais, tratamento de erros e registro das rotas dos módulos. */
 export async function buildApp(container: Container): Promise<App> {
   const { config, controllers, guards } = container;
+  configureValidationMessages();
 
   const app = Fastify({
     loggerInstance: container.logger as FastifyBaseLogger,
@@ -61,11 +54,26 @@ export async function buildApp(container: Container): Promise<App> {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.decorateRequest("auth", null);
+  // R88: cada rota documenta também as respostas de erro que pode devolver.
+  app.addHook("onRoute", documentErrorResponses);
+
+  // A API só aceita JSON. Corpo vazio com Content-Type JSON vale como "sem corpo" (muitos
+  // clientes HTTP enviam o cabeçalho em todo POST); texto puro recebe 415.
+  const parseJson = app.getDefaultJsonParser("error", "error");
+  app.removeContentTypeParser(["application/json", "text/plain"]);
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {
+    const text = body.toString();
+    if (text.trim() === "") {
+      done(null, undefined);
+      return;
+    }
+    parseJson(request, text, done);
+  });
 
   await app.register(cors, {
     origin: config.corsOrigins === "*" ? true : config.corsOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    exposedHeaders: ["x-request-id", "retry-after", "content-disposition"],
+    exposedHeaders: ["x-request-id", "retry-after", "content-disposition", "www-authenticate"],
   });
 
   // R86: respostas comprimidas (br/gzip/deflate conforme Accept-Encoding) e aceitação de
@@ -87,7 +95,7 @@ export async function buildApp(container: Container): Promise<App> {
         title: "Orçamento Fácil — API",
         version: API_VERSION,
         description:
-          "API RESTful do Orçamento Fácil (Sprint 1). Valores monetários são números com até 2 casas decimais na moeda da carteira; datas no formato AAAA-MM-DD. Erros seguem o formato { statusCode, code, message, details? }.",
+          "API RESTful do Orçamento Fácil (Sprint 1). Valores monetários são números com até 2 casas decimais na moeda da carteira; datas no formato AAAA-MM-DD. Corpos e filtros são validados de forma estrita: campo desconhecido é erro. Erros seguem o formato { statusCode, code, message, details? }, e `details` aponta cada campo inválido.",
       },
       components: {
         securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" } },
@@ -110,15 +118,10 @@ export async function buildApp(container: Container): Promise<App> {
   });
 
   // R72: em manutenção, operações que alteram dados são recusadas com aviso ao usuário.
-  app.addHook("onRequest", async (request) => {
-    if (!MUTATING_METHODS.has(request.method)) return;
-    const path = request.url.split("?")[0] ?? "";
-    if (isMaintenanceExempt(path)) return;
-    const state = await container.services.maintenance.getState();
-    if (state.enabled) {
-      throw errors.maintenance(state.message ?? DEFAULT_MAINTENANCE_MESSAGE);
-    }
-  });
+  app.addHook(
+    "onRequest",
+    createMaintenanceGate(() => container.services.maintenance.getState(), DEFAULT_MAINTENANCE_MESSAGE),
+  );
 
   app.setErrorHandler(createErrorHandler(container.eventLog));
   app.setNotFoundHandler((request, reply) =>
@@ -132,6 +135,7 @@ export async function buildApp(container: Container): Promise<App> {
   // Rotas de cada módulo: route → controller → service → repository.
   await app.register(systemRoutes(controllers.system));
   await app.register(authRoutes(controllers.auth, guards), { prefix: "/api/auth" });
+  await app.register(biometricRoutes(controllers.biometric, guards), { prefix: "/api/auth/biometric" });
   await app.register(userRoutes(controllers.user, guards), { prefix: "/api/users" });
   await app.register(walletRoutes(controllers.wallet, guards), { prefix: "/api/wallets" });
   await app.register(categoryRoutes(controllers.category, guards), { prefix: "/api/categories" });
@@ -139,6 +143,7 @@ export async function buildApp(container: Container): Promise<App> {
   await app.register(transactionRoutes(controllers.transaction, guards), { prefix: "/api/transactions" });
   await app.register(transferRoutes(controllers.transfer, guards), { prefix: "/api/transfers" });
   await app.register(exchangeRateRoutes(controllers.exchangeRate, guards), { prefix: "/api/exchange-rates" });
+  await app.register(currencyRoutes(controllers.exchangeRate), { prefix: "/api/currencies" });
   await app.register(historyRoutes(controllers.history, guards), { prefix: "/api/history" });
   await app.register(reportRoutes(controllers.report, guards), { prefix: "/api/reports" });
   await app.register(adminRoutes(controllers.admin, guards), { prefix: "/api/admin" });

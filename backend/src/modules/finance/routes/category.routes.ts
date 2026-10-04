@@ -11,7 +11,7 @@ export function categoryRoutes(controller: CategoryController, guards: HttpGuard
     app.get("/", { schema: schemas.list }, controller.list);
     app.post("/", { schema: schemas.create }, controller.create);
     app.post("/suggest", { schema: schemas.suggest }, controller.suggest);
-    app.patch("/:id", { schema: schemas.rename }, controller.rename);
+    app.patch("/:id", { schema: schemas.update }, controller.update);
     app.delete("/:id", { schema: schemas.remove }, controller.remove);
   };
 }

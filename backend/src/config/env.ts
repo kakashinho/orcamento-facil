@@ -42,6 +42,7 @@ const envSchema = z.object({
   SCRYPT_PARALLELIZATION: z.coerce.number().int().min(1).max(16).default(3),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
   ADMIN_EMAILS: listFromEnv.default([]),
+  BIOMETRIC_CHALLENGE_TTL_SECONDS: z.coerce.number().int().min(30).max(600).default(120),
 
   DATA_ENCRYPTION_KEY: base64Key,
   DATA_ENCRYPTION_KEY_VERSION: z.coerce.number().int().min(1).max(255).default(1),
@@ -62,6 +63,11 @@ const envSchema = z.object({
 
   UNDO_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
   MAINTENANCE_MODE: booleanFromEnv.default(false),
+
+  // Limpeza periódica de dados vencidos (sessões, links de recuperação, histórico e logs antigos).
+  HOUSEKEEPING_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
+  HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+  LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
 });
 
 export interface AppConfig {
@@ -85,6 +91,7 @@ export interface AppConfig {
     scryptParallelization: number;
     rateLimitMax: number;
     adminEmails: Set<string>;
+    biometricChallengeTtlSeconds: number;
   };
   encryption: { activeKeyVersion: number; keys: Map<number, Buffer> };
   mail: {
@@ -94,6 +101,12 @@ export interface AppConfig {
   exchangeRates: { apiUrl: string; cacheTtlMinutes: number; timeoutMs: number };
   undoWindowHours: number;
   maintenanceForced: boolean;
+  housekeeping: {
+    /** 0 desliga a execução automática (a rota administrativa continua disponível). */
+    intervalMinutes: number;
+    historyRetentionDays: number;
+    logRetentionDays: number;
+  };
 }
 
 function parsePreviousKeys(raw: string): Map<number, Buffer> {
@@ -149,6 +162,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       scryptParallelization: env.SCRYPT_PARALLELIZATION,
       rateLimitMax: env.AUTH_RATE_LIMIT_MAX,
       adminEmails: new Set(env.ADMIN_EMAILS.map((email) => email.toLowerCase())),
+      biometricChallengeTtlSeconds: env.BIOMETRIC_CHALLENGE_TTL_SECONDS,
     },
     encryption: { activeKeyVersion: env.DATA_ENCRYPTION_KEY_VERSION, keys },
     mail: {
@@ -172,5 +186,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     undoWindowHours: env.UNDO_WINDOW_HOURS,
     maintenanceForced: env.MAINTENANCE_MODE,
+    housekeeping: {
+      intervalMinutes: env.HOUSEKEEPING_INTERVAL_MINUTES,
+      // O histórico nunca é apagado antes do fim da janela do "desfazer".
+      historyRetentionDays: Math.max(env.HISTORY_RETENTION_DAYS, Math.ceil(env.UNDO_WINDOW_HOURS / 24)),
+      logRetentionDays: env.LOG_RETENTION_DAYS,
+    },
   };
 }

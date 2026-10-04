@@ -1,5 +1,6 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
+import { responseTimestamp } from "../../../infrastructure/http/common-schemas.js";
 
 const TAGS = ["Sistema"];
 
@@ -13,7 +14,7 @@ export const readinessDownResponseSchema = z.object({ status: z.literal("degrade
 export const statusResponseSchema = z.object({
   status: z.literal("ok"),
   version: z.string(),
-  time: z.string(),
+  time: responseTimestamp,
   maintenance: z.object({ enabled: z.boolean(), message: z.string().nullable() }),
 });
 export type StatusResponseDto = z.infer<typeof statusResponseSchema>;

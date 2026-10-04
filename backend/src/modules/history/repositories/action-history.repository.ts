@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { aad, type FieldCipher } from "../../../infrastructure/crypto/field-cipher.js";
 import type { Database, DbTransaction } from "../../../infrastructure/database/client.js";
 import { Repository } from "../../../infrastructure/database/repository.js";
@@ -75,6 +75,11 @@ export class ActionHistoryRepository extends Repository {
 
   async markUndone(entryId: string, now: Date, tx: DbTransaction): Promise<void> {
     await tx.update(actionHistory).set({ undoneAt: now }).where(eq(actionHistory.id, entryId));
+  }
+
+  async deleteOlderThan(before: Date): Promise<number> {
+    const result = await this.db.delete(actionHistory).where(lt(actionHistory.createdAt, before));
+    return result.rowCount ?? 0;
   }
 
   async deleteByEntityIds(userId: string, entityIds: string[], tx: DbTransaction): Promise<void> {

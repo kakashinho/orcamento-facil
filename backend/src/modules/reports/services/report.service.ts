@@ -1,6 +1,6 @@
 import type { Clock } from "../../../infrastructure/clock.js";
 import { errors } from "../../../shared/errors/app-error.js";
-import { monthOf, monthRange, monthsBetween } from "../../../shared/utils/dates.js";
+import { monthOf, monthRange, monthsBetween, todayInTimeZone } from "../../../shared/utils/dates.js";
 import { fromCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
 import type { ExchangeRateService } from "../../finance/services/exchange-rate.service.js";
@@ -16,6 +16,8 @@ import type {
   ConvertedTotalsDto,
   MonthlyQueryDto,
   MonthlyResponseDto,
+  OverviewQueryDto,
+  OverviewResponseDto,
   PeriodQueryDto,
   StatementResponseDto,
 } from "../schemas/report.schema.js";
@@ -31,7 +33,8 @@ export interface ReportServiceDeps {
   clock: Clock;
 }
 
-const MAX_PERIOD_DAYS = 366 * 5;
+const OVERVIEW_TOP_CATEGORIES = 5;
+const OVERVIEW_RECENT_TRANSACTIONS = 5;
 
 function byChronology(a: Movement, b: Movement): number {
   if (a.date !== b.date) return a.date < b.date ? -1 : 1;
@@ -41,17 +44,32 @@ function byChronology(a: Movement, b: Movement): number {
 }
 
 /**
- * Consultas e relatórios: extrato (R41), fluxo de caixa (R58) e agregações para gráficos.
- * Não acessa tabelas: consulta os dados pelos services públicos do finance e do auth.
+ * Consultas e relatórios: visão geral da tela inicial, extrato (R41), fluxo de caixa (R58) e
+ * agregações para gráficos. Não acessa tabelas: consulta os dados pelos services públicos do
+ * finance e do auth. Os períodos já chegam validados pelos DTOs (ordem e tamanho máximo).
  */
 export class ReportService {
   constructor(private readonly deps: ReportServiceDeps) {}
 
-  private assertPeriod(from: string, to: string): void {
-    if (from > to) throw errors.validation("A data inicial deve ser anterior ou igual à final.");
-    if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_PERIOD_DAYS) {
-      throw errors.validation("O período máximo de um relatório é de 5 anos.");
-    }
+  /** Tela inicial (R55, R83, R86): tudo o que ela mostra em uma única requisição. */
+  async overview(userId: string, query: OverviewQueryDto): Promise<OverviewResponseDto> {
+    const { users, wallets, transactions, clock } = this.deps;
+    const { timezone } = await users.getPreferences(userId);
+    const month = query.month ?? monthOf(todayInTimeZone(clock.now(), timezone));
+    const range = monthRange(month);
+    const [walletSummary, monthSummary, expenses, recent] = await Promise.all([
+      wallets.summary(userId),
+      transactions.summary(userId, { month, archived: "all" }),
+      this.byCategory(userId, { from: range.from, to: range.to, type: "expense" }),
+      transactions.list(userId, { sort: "date", order: "desc", limit: OVERVIEW_RECENT_TRANSACTIONS, archived: "false" }),
+    ]);
+    return {
+      month,
+      wallets: walletSummary,
+      monthSummary,
+      topExpenseCategories: expenses.categories.slice(0, OVERVIEW_TOP_CATEGORIES),
+      recentTransactions: recent.data,
+    };
   }
 
   private async walletsOf(userId: string, walletId?: string): Promise<Wallet[]> {
@@ -98,7 +116,6 @@ export class ReportService {
 
   /** R41: por carteira, saldo inicial, movimentos em ordem cronológica e saldo corrente. */
   async statement(userId: string, query: PeriodQueryDto): Promise<StatementResponseDto> {
-    this.assertPeriod(query.from, query.to);
     const wallets = await this.walletsOf(userId, query.walletId);
     const walletIds = new Set(wallets.map((wallet) => wallet.id));
     const walletFilter = query.walletId ? { walletId: query.walletId } : {};
@@ -204,7 +221,6 @@ export class ReportService {
    * transferências internas ficam de fora (não são receita nem despesa).
    */
   async cashFlow(userId: string, query: PeriodQueryDto): Promise<CashFlowResponseDto> {
-    this.assertPeriod(query.from, query.to);
     const wallets = await this.walletsOf(userId, query.walletId);
     const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]));
     const movements = [
@@ -260,7 +276,6 @@ export class ReportService {
 
   /** Totais por categoria no período — base para gráfico de pizza. */
   async byCategory(userId: string, query: ByCategoryQueryDto): Promise<ByCategoryResponseDto> {
-    this.assertPeriod(query.from, query.to);
     const currencyOf = new Map((await this.walletsOf(userId)).map((wallet) => [wallet.id, wallet.currency]));
     const movements = await this.transactionMovements(userId, { from: query.from, to: query.to, type: query.type });
     const { primaryCurrency } = await this.deps.users.getPreferences(userId);
@@ -309,9 +324,7 @@ export class ReportService {
 
   /** Receitas × despesas por mês — base para gráfico de evolução. */
   async monthly(userId: string, query: MonthlyQueryDto): Promise<MonthlyResponseDto> {
-    if (query.fromMonth > query.toMonth) throw errors.validation("O mês inicial deve ser anterior ou igual ao final.");
     const months = monthsBetween(query.fromMonth, query.toMonth);
-    if (months.length > 36) throw errors.validation("O período máximo é de 36 meses.");
     const currencyOf = new Map((await this.walletsOf(userId)).map((wallet) => [wallet.id, wallet.currency]));
     const movements = await this.transactionMovements(userId, {
       from: monthRange(query.fromMonth).from,

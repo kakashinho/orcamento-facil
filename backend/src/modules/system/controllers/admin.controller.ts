@@ -2,6 +2,7 @@ import { requireAuth } from "../../../infrastructure/http/request-context.js";
 import type { ZodReply, ZodRequest } from "../../../infrastructure/http/types.js";
 import type { adminRouteSchemas } from "../schemas/admin.schema.js";
 import type { AppLogService } from "../services/app-log.service.js";
+import type { HousekeepingService } from "../services/housekeeping.service.js";
 import type { MaintenanceService } from "../services/maintenance.service.js";
 
 type Schemas = typeof adminRouteSchemas;
@@ -11,6 +12,7 @@ export class AdminController {
   constructor(
     private readonly maintenance: MaintenanceService,
     private readonly logs: AppLogService,
+    private readonly housekeepingService: HousekeepingService,
   ) {}
 
   getMaintenance = async (_request: ZodRequest<Schemas["getMaintenance"]>, reply: ZodReply<Schemas["getMaintenance"]>) => {
@@ -24,7 +26,11 @@ export class AdminController {
   listLogs = async (request: ZodRequest<Schemas["listLogs"]>, reply: ZodReply<Schemas["listLogs"]>) => {
     const { event, level, before, limit } = request.query;
     return reply.send(
-      await this.logs.list({ event, level, before: before ? new Date(before) : undefined, limit }),
+      await this.logs.list({ event: event || undefined, level, before: before ? new Date(before) : undefined, limit }),
     );
+  };
+
+  housekeeping = async (_request: ZodRequest<Schemas["housekeeping"]>, reply: ZodReply<Schemas["housekeeping"]>) => {
+    return reply.send(await this.housekeepingService.run());
   };
 }

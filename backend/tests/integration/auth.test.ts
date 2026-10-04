@@ -80,15 +80,22 @@ describe("autenticação (R02, R03, R04, R87)", () => {
     });
 
     it("não revela se a conta existe", async () => {
-      const response = await login({ email: `${unique()}@ninguem.com`, password: PASSWORD });
-      expect(response.statusCode).toBe(401);
-      expect(response.json().code).toBe("INVALID_CREDENTIALS");
+      const user = await registerUser(ctx.app);
+      const unknown = await login({ email: `${unique()}@ninguem.com`, password: PASSWORD });
+      const wrongPassword = await login({ email: user.email, password: "Errada@123" });
+      expect(unknown.statusCode).toBe(401);
+      expect(unknown.json().code).toBe("INVALID_CREDENTIALS");
+      // Conta existente com senha errada responde exatamente igual a conta inexistente.
+      expect(wrongPassword.json()).toEqual(unknown.json());
     });
 
     it("access token expira e o refresh token renova a sessão com rotação", async () => {
       const user = await registerUser(ctx.app);
       ctx.clock.advanceMinutes(16);
-      expect((await user.api.get("/api/users/me")).statusCode).toBe(401);
+      const expired = await user.api.get("/api/users/me");
+      expect(expired.statusCode).toBe(401);
+      expect(expired.json().code).toBe("TOKEN_EXPIRED");
+      expect(expired.headers["www-authenticate"]).toContain("invalid_token");
 
       const refreshed = await ctx.app.inject({
         method: "POST",
@@ -108,17 +115,31 @@ describe("autenticação (R02, R03, R04, R87)", () => {
 
       const reuse = await ctx.app.inject({ method: "POST", url: "/api/auth/refresh", payload: { refreshToken: user.refreshToken } });
       expect(reuse.statusCode).toBe(401);
+      expect(reuse.json().code).toBe("INVALID_REFRESH_TOKEN");
       // A sessão comprometida cai: nem o token novo nem o access token valem mais.
       const afterReuse = await ctx.app.inject({ method: "POST", url: "/api/auth/refresh", payload: { refreshToken: rotated.refreshToken } });
       expect(afterReuse.statusCode).toBe(401);
-      expect((await apiClient(ctx.app, rotated.accessToken).get("/api/users/me")).statusCode).toBe(401);
+      const revoked = await apiClient(ctx.app, rotated.accessToken).get("/api/users/me");
+      expect(revoked.statusCode).toBe(401);
+      expect(revoked.json().code).toBe("SESSION_REVOKED");
     });
 
     it("logout invalida a sessão imediatamente", async () => {
       const user = await registerUser(ctx.app);
       const response = await ctx.app.inject({ method: "POST", url: "/api/auth/logout", payload: { refreshToken: user.refreshToken } });
       expect(response.statusCode).toBe(204);
-      expect((await user.api.get("/api/users/me")).statusCode).toBe(401);
+      const after = await user.api.get("/api/users/me");
+      expect(after.statusCode).toBe(401);
+      expect(after.json().code).toBe("SESSION_REVOKED");
+    });
+
+    it("distingue ausência de token, token inválido e token vencido", async () => {
+      const missing = await ctx.app.inject({ method: "GET", url: "/api/users/me" });
+      expect(missing.statusCode).toBe(401);
+      expect(missing.json().code).toBe("UNAUTHORIZED");
+      expect(missing.headers["www-authenticate"]).toContain("Bearer");
+      const invalid = await apiClient(ctx.app, "abc.def.ghi").get("/api/users/me");
+      expect(invalid.json().code).toBe("INVALID_TOKEN");
     });
 
     it("logout-all encerra todas as sessões do usuário", async () => {
@@ -134,7 +155,7 @@ describe("autenticação (R02, R03, R04, R87)", () => {
       const user = await registerUser(ctx.app);
       const first = await login({ email: user.email, password: "Errada@123" });
       expect(first.statusCode).toBe(401);
-      expect(first.json().details).toEqual({ remainingAttempts: 2 });
+      expect(first.json()).not.toHaveProperty("details");
       await login({ email: user.email, password: "Errada@123" });
       const locking = await login({ email: user.email, password: "Errada@123" });
       expect(locking.statusCode).toBe(423);
@@ -153,8 +174,10 @@ describe("autenticação (R02, R03, R04, R87)", () => {
       await login({ email: user.email, password: "Errada@123" });
       await login({ email: user.email, password: "Errada@123" });
       expect((await login({ email: user.email, password: PASSWORD })).statusCode).toBe(200);
-      const again = await login({ email: user.email, password: "Errada@123" });
-      expect(again.json().details).toEqual({ remainingAttempts: 2 });
+      // Sem o reset, a próxima falha seria a 3ª e bloquearia; com ele, só a 3ª nova bloqueia.
+      expect((await login({ email: user.email, password: "Errada@123" })).statusCode).toBe(401);
+      expect((await login({ email: user.email, password: "Errada@123" })).statusCode).toBe(401);
+      expect((await login({ email: user.email, password: "Errada@123" })).statusCode).toBe(423);
     });
   });
 
@@ -186,7 +209,8 @@ describe("autenticação (R02, R03, R04, R87)", () => {
         url: "/api/auth/password/reset",
         payload: { token, password: "OutraSenha#2026" },
       });
-      expect(reuse.statusCode).toBe(401);
+      expect(reuse.statusCode).toBe(400);
+      expect(reuse.json().code).toBe("INVALID_RESET_TOKEN");
     });
 
     it("responde igual para e-mail não cadastrado e não envia nada", async () => {
@@ -214,7 +238,8 @@ describe("autenticação (R02, R03, R04, R87)", () => {
         url: "/api/auth/password/reset",
         payload: { token: firstToken, password: "NovaSenha#2026" },
       });
-      expect(old.statusCode).toBe(401);
+      expect(old.statusCode).toBe(400);
+      expect(old.json().code).toBe("INVALID_RESET_TOKEN");
 
       ctx.clock.advanceMinutes(61);
       const expired = await ctx.app.inject({
@@ -222,7 +247,8 @@ describe("autenticação (R02, R03, R04, R87)", () => {
         url: "/api/auth/password/reset",
         payload: { token: secondToken, password: "NovaSenha#2026" },
       });
-      expect(expired.statusCode).toBe(401);
+      expect(expired.statusCode).toBe(400);
+      expect(expired.json().code).toBe("INVALID_RESET_TOKEN");
     });
 
     it("página web do link funciona sem o aplicativo", async () => {
@@ -258,19 +284,38 @@ describe("autenticação (R02, R03, R04, R87)", () => {
   it("troca de senha autenticada exige a senha atual", async () => {
     const user = await registerUser(ctx.app);
     const wrong = await user.api.post("/api/auth/password/change", { currentPassword: "Errada@123", newPassword: "NovaSenha#2026" });
-    expect(wrong.statusCode).toBe(409);
+    expect(wrong.statusCode).toBe(422);
+    expect(wrong.json()).toMatchObject({
+      code: "INVALID_CURRENT_PASSWORD",
+      details: [{ location: "body", path: "currentPassword", message: "A senha atual está incorreta." }],
+    });
+    const same = await user.api.post("/api/auth/password/change", { currentPassword: PASSWORD, newPassword: PASSWORD });
+    expect(same.statusCode).toBe(400);
+    expect(same.json().details).toEqual([
+      { location: "body", path: "newPassword", message: "A nova senha deve ser diferente da atual." },
+    ]);
     const ok = await user.api.post("/api/auth/password/change", { currentPassword: PASSWORD, newPassword: "NovaSenha#2026" });
     expect(ok.statusCode).toBe(204);
     expect((await user.api.get("/api/users/me")).statusCode).toBe(200);
     expect((await login({ email: user.email, password: "NovaSenha#2026" })).statusCode).toBe(200);
   });
 
-  it("perfil: moeda principal (R28) e fuso horário", async () => {
+  it("perfil: moeda principal (R28), fuso horário e tema (R42)", async () => {
     const user = await registerUser(ctx.app);
-    const updated = await user.api.patch("/api/users/me", { primaryCurrency: "USD", timezone: "Europe/Lisbon" });
+    expect((await user.api.get("/api/users/me")).json().theme).toBe("system");
+    const updated = await user.api.patch("/api/users/me", { primaryCurrency: "usd", timezone: "Europe/Lisbon", theme: "dark" });
     expect(updated.statusCode).toBe(200);
-    expect(updated.json()).toMatchObject({ primaryCurrency: "USD", timezone: "Europe/Lisbon" });
-    expect((await user.api.patch("/api/users/me", { primaryCurrency: "XYZ" })).statusCode).toBe(422);
-    expect((await user.api.patch("/api/users/me", { timezone: "Lugar/Nenhum" })).statusCode).toBe(400);
+    expect(updated.json()).toMatchObject({ primaryCurrency: "USD", timezone: "Europe/Lisbon", theme: "dark" });
+
+    const currency = await user.api.patch("/api/users/me", { primaryCurrency: "XYZ" });
+    expect(currency.statusCode).toBe(400);
+    expect(currency.json().details).toEqual([
+      { location: "body", path: "primaryCurrency", message: "Moeda não suportada. Consulte GET /api/currencies." },
+    ]);
+    const timezone = await user.api.patch("/api/users/me", { timezone: "Lugar/Nenhum" });
+    expect(timezone.statusCode).toBe(400);
+    expect(timezone.json().details[0].path).toBe("timezone");
+    const theme = await user.api.patch("/api/users/me", { theme: "azul" });
+    expect(theme.json().details[0]).toMatchObject({ path: "theme", message: "Valor inválido. Use: system, light, dark." });
   });
 });

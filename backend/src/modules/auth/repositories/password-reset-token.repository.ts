@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import type { DbTransaction } from "../../../infrastructure/database/client.js";
 import { Repository } from "../../../infrastructure/database/repository.js";
 import { passwordResetTokens } from "../../../infrastructure/database/schema.js";
@@ -33,6 +33,12 @@ export class PasswordResetTokenRepository extends Repository {
       .from(passwordResetTokens)
       .where(eq(passwordResetTokens.tokenHash, tokenHash));
     return row;
+  }
+
+  /** Limpeza: links vencidos antes de `before` (usados ou não) não têm mais utilidade. */
+  async deleteExpired(before: Date): Promise<number> {
+    const result = await this.db.delete(passwordResetTokens).where(lt(passwordResetTokens.expiresAt, before));
+    return result.rowCount ?? 0;
   }
 
   /** Marca o link como usado; devolve `false` se outro pedido já o consumiu (uso único). */

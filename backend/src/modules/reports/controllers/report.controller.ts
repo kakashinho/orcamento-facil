@@ -8,6 +8,10 @@ type Schemas = typeof reportRouteSchemas;
 export class ReportController {
   constructor(private readonly reports: ReportService) {}
 
+  overview = async (request: ZodRequest<Schemas["overview"]>, reply: ZodReply<Schemas["overview"]>) => {
+    return reply.send(await this.reports.overview(requireAuth(request).userId, request.query));
+  };
+
   statement = async (request: ZodRequest<Schemas["statement"]>, reply: ZodReply<Schemas["statement"]>) => {
     return reply.send(await this.reports.statement(requireAuth(request).userId, request.query));
   };

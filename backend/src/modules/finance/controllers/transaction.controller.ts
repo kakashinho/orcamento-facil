@@ -16,6 +16,10 @@ export class TransactionController {
     return reply.send(await this.transactions.summary(requireAuth(request).userId, request.query));
   };
 
+  months = async (request: ZodRequest<Schemas["months"]>, reply: ZodReply<Schemas["months"]>) => {
+    return reply.send(await this.transactions.months(requireAuth(request).userId, request.query));
+  };
+
   create = async (request: ZodRequest<Schemas["create"]>, reply: ZodReply<Schemas["create"]>) => {
     return reply.status(201).send(await this.transactions.create(requireAuth(request).userId, request.body));
   };

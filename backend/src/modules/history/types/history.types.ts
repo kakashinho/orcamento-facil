@@ -14,6 +14,18 @@ export const HISTORY_ACTIONS = [
 export type HistoryAction = (typeof HISTORY_ACTIONS)[number];
 export type HistoryEntityType = "transaction" | "transfer";
 
+/** Texto da ação para a tela de histórico e o botão "Desfazer". */
+export const HISTORY_LABELS: Record<HistoryAction, string> = {
+  "transaction.create": "Transação registrada",
+  "transaction.update": "Transação editada",
+  "transaction.delete": "Transação excluída",
+  "transaction.archive": "Transação arquivada",
+  "transaction.unarchive": "Transação desarquivada",
+  "transaction.bulk_archive": "Transações antigas arquivadas",
+  "transfer.create": "Transferência realizada",
+  "transfer.delete": "Transferência excluída",
+};
+
 export interface NewHistoryEntry {
   id: string;
   userId: string;

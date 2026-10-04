@@ -10,6 +10,7 @@ export function transactionRoutes(controller: TransactionController, guards: Htt
 
     app.get("/", { schema: schemas.list }, controller.list);
     app.get("/summary", { schema: schemas.summary }, controller.summary);
+    app.get("/months", { schema: schemas.months }, controller.months);
     app.post("/", { schema: schemas.create }, controller.create);
     app.post("/parse", { schema: schemas.parse }, controller.parse);
     app.post("/archive", { schema: schemas.archiveBefore }, controller.archiveBefore);

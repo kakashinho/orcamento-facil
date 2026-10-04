@@ -1,28 +1,29 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
-import { secured } from "../../../infrastructure/http/common-schemas.js";
+import { limitQuery, responseId, responseTimestamp, secured } from "../../../infrastructure/http/common-schemas.js";
 import { HISTORY_ACTIONS } from "../types/history.types.js";
 
 const TAGS = ["Histórico"];
 
 // ---------- Request DTOs ----------
 
-export const listHistoryQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(50).default(20) });
+export const listHistoryQuerySchema = z.strictObject({ limit: limitQuery(50, 20) });
 export type ListHistoryQueryDto = z.infer<typeof listHistoryQuerySchema>;
 
 // ---------- Response DTOs ----------
 
 const historyEntrySchema = z.object({
-  id: z.string(),
+  id: responseId,
   action: z.enum(HISTORY_ACTIONS),
+  label: z.string().meta({ description: "Texto da ação para exibir ao usuário", example: "Transação excluída" }),
   entityType: z.enum(["transaction", "transfer"]),
-  entityId: z.string().nullable(),
-  createdAt: z.string(),
+  entityId: responseId.nullable(),
+  createdAt: responseTimestamp,
 });
 
 export const historyEntryResponseSchema = historyEntrySchema.extend({
-  undoneAt: z.string().nullable(),
-  undoable: z.boolean(),
+  undoneAt: responseTimestamp.nullable(),
+  undoable: z.boolean().meta({ description: "Ainda pode ser desfeita (não desfeita e dentro da janela)" }),
 });
 export type HistoryEntryResponseDto = z.infer<typeof historyEntryResponseSchema>;
 
@@ -48,7 +49,7 @@ export const historyRouteSchemas = {
     tags: TAGS,
     summary: "Desfazer a última ação (R49)",
     description:
-      "Reverte a ação mais recente ainda não desfeita, recompondo saldos. Chamadas seguidas desfazem as ações anteriores. 404 NOTHING_TO_UNDO quando não há o que desfazer.",
+      "Reverte a ação mais recente ainda não desfeita, recompondo saldos. Chamadas seguidas desfazem as ações anteriores. 404 NOTHING_TO_UNDO quando não há o que desfazer; 409 UNDO_NOT_POSSIBLE quando os dados de origem não existem mais.",
     security: secured,
     response: { 200: undoResponseSchema },
   },

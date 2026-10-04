@@ -10,15 +10,15 @@ export const MAX_AMOUNT = 1_000_000_000_000;
  */
 export function toCents(amount: number, field = "amount"): number {
   if (!Number.isFinite(amount)) {
-    throw errors.validation(`O campo ${field} deve ser um número válido.`);
+    throw errors.invalidField(field, "Informe um número válido.");
   }
   const scaled = amount * 100;
   const cents = Math.round(scaled);
   if (Math.abs(cents - scaled) > 1e-6) {
-    throw errors.validation(`O campo ${field} aceita no máximo duas casas decimais.`);
+    throw errors.invalidField(field, "Use no máximo duas casas decimais.");
   }
   if (Math.abs(amount) > MAX_AMOUNT) {
-    throw errors.validation(`O campo ${field} excede o valor máximo permitido.`);
+    throw errors.invalidField(field, "Valor acima do máximo permitido.");
   }
   return cents;
 }

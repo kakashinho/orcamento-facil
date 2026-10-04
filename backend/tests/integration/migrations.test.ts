@@ -21,6 +21,7 @@ describe("migrations oficiais", () => {
     expect(rows.map((row) => row.table_name)).toEqual([
       "action_history",
       "app_logs",
+      "biometric_credentials",
       "categories",
       "password_reset_tokens",
       "sessions",
@@ -63,13 +64,17 @@ describe("migrations oficiais", () => {
     expect(byName.get("transactions_user_date_idx")).toMatch(/date DESC.*created_at DESC.*id DESC/);
   });
 
-  it("semeiam categorias predefinidas (R07) e a configuração de manutenção", async () => {
-    const categories = await client.query<{ name: string }>(
-      "select name from categories where user_id is null order by system_key",
+  it("semeiam categorias predefinidas (R07) com tipo e a configuração de manutenção", async () => {
+    const categories = await client.query<{ name: string; type: string | null }>(
+      "select name, type from categories where user_id is null order by system_key",
     );
     expect(categories.rows.map((row) => row.name)).toEqual(
       expect.arrayContaining(["Alimentação", "Transporte", "Lazer", "Moradia", "Saúde"]),
     );
+    const typeOf = new Map(categories.rows.map((row) => [row.name, row.type]));
+    expect(typeOf.get("Alimentação")).toBe("expense");
+    expect(typeOf.get("Salário")).toBe("income");
+    expect(typeOf.get("Outros")).toBeNull();
     const settings = await client.query("select * from system_settings");
     expect(settings.rows).toHaveLength(1);
   });
@@ -79,11 +84,19 @@ describe("migrations oficiais", () => {
     await expect(
       client.query("insert into categories (name) values ('Sem dono e sem chave')"),
     ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      client.query(
+        "insert into users (email, username, password_hash, theme) values ('tema@teste.com', 'tema_invalido', 'x', 'azul')",
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      client.query("insert into categories (user_id, name, type) select id, 'Tipo inválido', 'ambos' from users limit 1"),
+    ).rejects.toMatchObject({ code: "23514" });
   });
 
   it("são idempotentes: reaplicar não executa nada novamente", async () => {
     await runMigrations(TEST_DATABASE_URL);
     const { rows } = await client.query("select count(*)::int as total from drizzle.__drizzle_migrations");
-    expect(rows[0].total).toBe(2);
+    expect(rows[0].total).toBe(3);
   });
 });

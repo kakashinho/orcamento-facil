@@ -12,5 +12,6 @@ export function adminRoutes(controller: AdminController, guards: HttpGuards): Fa
     app.get("/maintenance", { schema: schemas.getMaintenance }, controller.getMaintenance);
     app.put("/maintenance", { schema: schemas.setMaintenance }, controller.setMaintenance);
     app.get("/logs", { schema: schemas.listLogs }, controller.listLogs);
+    app.post("/housekeeping", { schema: schemas.housekeeping }, controller.housekeeping);
   };
 }
