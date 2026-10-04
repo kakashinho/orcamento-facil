@@ -16,7 +16,6 @@
     "test": "vitest",
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",
     "db:migrate:prod": "node dist/infrastructure/database/migrate.js",
@@ -44,7 +43,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.6",

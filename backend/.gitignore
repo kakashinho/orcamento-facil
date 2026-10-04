@@ -1,6 +1,4 @@
 node_modules/
 dist/
 .env
-playwright-report/
-test-results/
 # As migrations em drizzle/ são oficiais e DEVEM ser versionadas.

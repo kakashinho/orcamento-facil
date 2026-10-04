@@ -58,7 +58,6 @@ export interface TransactionDetails {
 }
 
 export type ArchivedFilter = "false" | "true" | "all";
-export type TransactionSort = "date" | "amount" | "category";
 export type SortOrder = "asc" | "desc";
 
 /** Filtros estruturados que o service entrega ao repository (R10, R26, R52). */

@@ -6,7 +6,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/integration/**/*.test.ts"],
-    exclude: ["node_modules", "dist", "tests/unit", "tests/e2e"],
+    exclude: ["node_modules", "dist", "tests/unit"],
     environment: "node",
     globals: true,
     env: {
@@ -14,7 +14,6 @@ export default defineConfig({
         process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5433/orcamento_test",
     },
     globalSetup: ["tests/integration/global-setup.ts"],
-    setupFiles: ["tests/integration/setup.ts"],
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,

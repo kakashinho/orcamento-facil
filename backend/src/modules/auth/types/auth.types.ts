@@ -6,19 +6,6 @@ export interface RequestMeta {
   userAgent?: string | undefined;
 }
 
-export interface RegisterInput {
-  email: string;
-  username: string;
-  password: string;
-  primaryCurrency?: string | undefined;
-}
-
-export interface LoginInput {
-  email?: string | undefined;
-  username?: string | undefined;
-  password: string;
-}
-
 export interface SessionRecord {
   id: string;
   userId: string;

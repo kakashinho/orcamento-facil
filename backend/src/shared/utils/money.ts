@@ -66,7 +66,3 @@ export function isSupportedCurrency(code: string): boolean {
   currencyCodes ??= new Set(Intl.supportedValuesOf("currency"));
   return currencyCodes.has(code);
 }
-
-export function formatMoney(cents: number, currency: string, locale = "pt-BR"): string {
-  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(fromCents(cents));
-}

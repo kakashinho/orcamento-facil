@@ -33,8 +33,6 @@ export const signedAmount = z
   .max(MAX_AMOUNT)
   .meta({ description: "Valor com até 2 casas decimais", example: 1500 });
 
-export const timestamp = z.string().meta({ description: "Data/hora ISO 8601 (UTC)", example: "2026-10-03T12:00:00.000Z" });
-
 export const errorResponse = z
   .object({
     statusCode: z.number(),
@@ -45,9 +43,5 @@ export const errorResponse = z
   .meta({ id: "ErrorResponse", description: "Formato padrão de erro" });
 
 export const limitQuery = z.coerce.number().int().min(1).max(100).default(20);
-
-export const walletRef = z.object({ id: z.uuid(), name: z.string(), currency: z.string() });
-export const categoryRef = z.object({ id: z.uuid(), name: z.string(), predefined: z.boolean() });
-export const tagRef = z.object({ id: z.uuid(), name: z.string() });
 
 export const secured = [{ bearerAuth: [] }];
