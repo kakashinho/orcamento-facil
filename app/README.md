@@ -1,56 +1,91 @@
-# Welcome to your Expo app 👋
+# Orçamento Fácil — aplicativo Android
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo da Sprint 1 do Orçamento Fácil, em **React Native 0.86 (Expo SDK 57)**, empacotado só para
+**Android** (R79). Consome a API RESTful de [`../backend`](../backend/GUIA.md) e segue o visual do protótipo
+[`../NavegVelOrAmentoFCil`](../NavegVelOrAmentoFCil) (Material Design 3, R80).
 
-## Get started
+- Arquitetura, camadas e mapa de requisitos: [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
+- Testes de contrato com o backend: [tests/contract/README.md](tests/contract/README.md)
 
-1. Install dependencies
+## Pré-requisitos
 
-   ```bash
-   npm install
-   ```
+| Ferramenta | Versão |
+|---|---|
+| Node.js | 22.13+ ou 24 |
+| JDK | 17 ou 21 (o do Android Studio serve: `C:\Program Files\Android\Android Studio\jbr`) |
+| Android SDK | Platform 36, Build-Tools 36, NDK 27 (instale pelo Android Studio) |
+| Backend | rodando localmente (veja `backend/GUIA.md`) |
 
-2. Start the app
+O app usa módulos nativos (biometria, voz, armazenamento cifrado), então **não roda no Expo Go**: é preciso
+um build de desenvolvimento ou de release.
 
-   ```bash
-   npx expo start
-   ```
+## Configuração
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Copie `.env.example` para `.env` e ajuste a URL da API:
 
 ```bash
-npm run reset-project
+EXPO_PUBLIC_API_URL=http://10.0.2.2:3000   # emulador: 10.0.2.2 é o localhost do computador
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Num aparelho físico, use o IP do computador na rede (ex.: `http://192.168.0.10:3000`). Com `http://`, o
+build libera tráfego sem TLS; em produção, use `https://`.
 
-### Other setup steps
+## Rodando
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm install
+npm run android          # gera o build de desenvolvimento, instala no emulador/aparelho e sobe o Metro
+npm start                # nas próximas vezes, só o Metro (o app já instalado se conecta)
+```
 
-## Learn more
+APK de release (JS embutido, sem Metro):
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm run prebuild                                   # gera android/ a partir do app.config.ts
+cd android && ./gradlew assembleRelease            # APK em android/app/build/outputs/apk/release/
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Para gerar só para o emulador (mais rápido): `./gradlew assembleRelease -PreactNativeArchitectures=x86_64`.
 
-## Join the community
+> **Windows: compile de uma pasta sem acentos.** O compilador C++ do NDK não abre arquivos em caminhos
+> com caracteres não ASCII (como `Área de Trabalho`), e o plugin Android recusa essas pastas. Para gerar
+> o APK, clone ou copie o projeto para um caminho só com ASCII (ex.: `C:\dev\orcamento-facil`). Os testes,
+> o lint e a checagem de tipos funcionam em qualquer pasta.
 
-Join our community of developers creating universal apps.
+A pasta `android/` é gerada (Continuous Native Generation) e não vai para o git: configurações nativas ficam
+em `app.config.ts` e nos plugins.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Scripts
+
+| Comando | Para quê |
+|---|---|
+| `npm run android` | Build de desenvolvimento no Android |
+| `npm start` | Metro para o build de desenvolvimento |
+| `npm test` | Testes unitários e de telas (Jest + Testing Library) |
+| `npm run test:coverage` | Testes com relatório de cobertura em `coverage/` |
+| `npm run test:contract` | Testes de contrato contra o backend real (API precisa estar no ar) |
+| `npm run typecheck` | Checagem de tipos (TypeScript estrito) |
+| `npm run lint` | ESLint (inclui as regras do React Compiler) |
+| `npm run icons:build` | Regera a fonte de ícones depois de mudar `src/ui/icons/icon-names.ts` |
+
+## Recuperação de senha pelo app (R04)
+
+Por padrão o link do e-mail abre a página de redefinição servida pelo backend. Para abrir direto no app,
+configure no backend `PASSWORD_RESET_URL=orcamentofacil://reset-password`. A tela do app também aceita o
+código do link colado manualmente.
+
+## Estrutura
+
+```text
+src/
+├── app/        rotas do Expo Router (finas: só apontam para as telas)
+├── features/   telas e componentes por funcionalidade (auth, home, transactions, wallets, preferences, shell...)
+├── data/       acesso à API: contrato (DTOs), cliente, sessão e hooks do React Query
+├── domain/     regras puras: dinheiro, datas, senha, catálogo de ícones
+├── core/       infraestrutura: HTTP, logs, armazenamento cifrado, configuração
+├── ui/         design system Material 3 (tema claro/escuro, componentes, ícones)
+└── test-utils/ backend falso, dados de exemplo e renderização com provedores
+tests/
+├── unit/       regras de arquitetura
+└── contract/   app × backend real
+```

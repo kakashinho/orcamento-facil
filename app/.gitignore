@@ -41,3 +41,10 @@ example
 # generated native folders
 /ios
 /android
+
+# relatórios de testes
+coverage/
+.icon-cache/
+
+# configuração local (URL da API desta máquina)
+.env
