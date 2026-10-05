@@ -1,4 +1,4 @@
-import { env } from "@/core/config/env";
+import { currentApiUrl } from "@/core/config/server-address";
 import { createHttpClient } from "@/core/http/http-client";
 import { logger } from "@/core/logging/logger";
 import { createQueryClient } from "@/core/query/query-client";
@@ -18,7 +18,7 @@ export const queryClient = createQueryClient();
 let sessionRef: ReturnType<typeof createSessionManager> | null = null;
 
 export const http = createHttpClient({
-  baseUrl: env.apiUrl,
+  baseUrl: currentApiUrl,
   logger,
   session: {
     getAccessToken: () => sessionRef?.getAccessToken() ?? Promise.resolve(null),

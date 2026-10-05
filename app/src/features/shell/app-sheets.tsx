@@ -8,6 +8,8 @@ import { WalletFormSheet } from "../wallets/wallet-form-sheet";
 /** Abre as folhas (formulários e detalhes) de qualquer tela, como o Shell do protótipo. */
 interface AppSheetsApi {
   openTransactionForm: (editing?: Transaction) => void;
+  /** Abre o formulário de nova transação já ouvindo (R65), direto da tela inicial. */
+  openVoiceTransaction: () => void;
   openTransactionDetails: (transaction: Transaction) => void;
   openTransfer: (fromWalletId?: string) => void;
   openWalletForm: (editing?: Wallet) => void;
@@ -15,11 +17,11 @@ interface AppSheetsApi {
 
 const AppSheetsContext = createContext<AppSheetsApi | null>(null);
 
-type FormState = { open: boolean; editing: Transaction | null; key: number };
+type FormState = { open: boolean; editing: Transaction | null; key: number; voice: boolean };
 
 export function AppSheetsProvider({ children }: { children: ReactNode }) {
   // Cada abertura ganha uma `key` nova: o formulário é remontado e o estado nasce limpo.
-  const [form, setForm] = useState<FormState>({ open: false, editing: null, key: 0 });
+  const [form, setForm] = useState<FormState>({ open: false, editing: null, key: 0, voice: false });
   const [details, setDetails] = useState<Transaction | null>(null);
   const [transfer, setTransfer] = useState<{ open: boolean; from?: string; key: number }>({ open: false, key: 0 });
   const [walletForm, setWalletForm] = useState<{ open: boolean; editing: Wallet | null; key: number }>({
@@ -30,7 +32,11 @@ export function AppSheetsProvider({ children }: { children: ReactNode }) {
 
   const openTransactionForm = useCallback((editing?: Transaction) => {
     setDetails(null);
-    setForm((f) => ({ open: true, editing: editing ?? null, key: f.key + 1 }));
+    setForm((f) => ({ open: true, editing: editing ?? null, key: f.key + 1, voice: false }));
+  }, []);
+  const openVoiceTransaction = useCallback(() => {
+    setDetails(null);
+    setForm((f) => ({ open: true, editing: null, key: f.key + 1, voice: true }));
   }, []);
   const openTransactionDetails = useCallback((transaction: Transaction) => setDetails(transaction), []);
   const openTransfer = useCallback((from?: string) => setTransfer((t) => ({ open: true, from, key: t.key + 1 })), []);
@@ -40,8 +46,8 @@ export function AppSheetsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ openTransactionForm, openTransactionDetails, openTransfer, openWalletForm }),
-    [openTransactionForm, openTransactionDetails, openTransfer, openWalletForm],
+    () => ({ openTransactionForm, openVoiceTransaction, openTransactionDetails, openTransfer, openWalletForm }),
+    [openTransactionForm, openVoiceTransaction, openTransactionDetails, openTransfer, openWalletForm],
   );
 
   return (
@@ -51,6 +57,7 @@ export function AppSheetsProvider({ children }: { children: ReactNode }) {
         key={`form-${form.key}`}
         open={form.open}
         editing={form.editing}
+        startWithVoice={form.voice}
         onClose={() => setForm((f) => ({ ...f, open: false }))}
       />
       <TransactionDetailsSheet

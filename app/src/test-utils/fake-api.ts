@@ -3,6 +3,8 @@
  * cada chamada (método, caminho, query, corpo e cabeçalhos) para as asserções.
  */
 export interface FakeRequest {
+  /** Servidor de destino (host:porta). */
+  host: string;
   method: string;
   path: string;
   query: Record<string, string>;
@@ -58,6 +60,7 @@ export function createFakeApi() {
       const method = (init.method ?? "GET").toUpperCase();
       const request: FakeRequest = {
         method,
+        host: url.host,
         path: url.pathname,
         query: Object.fromEntries(url.searchParams.entries()),
         body: init.body ? JSON.parse(init.body) : undefined,

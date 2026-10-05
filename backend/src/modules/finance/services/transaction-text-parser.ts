@@ -31,8 +31,10 @@ const EDGE_STOPWORDS = new Set([
   "o", "a", "os", "as", "e", "por", "ao", "que", "eu",
 ]);
 
+// Grupos: 1 valor; 2 centavos explícitos ("e 50 centavos"); 3-4 centavos falados ("35 e 90" = 35,90),
+// que o reconhecedor de voz devolve assim e só valem quando o valor é inteiro.
 const AMOUNT_PATTERN =
-  /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?:reais|real|conto|contos|pila|pilas))?(?:\s*e\s*(\d{1,2})\s*centavos?)?/i;
+  /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?:reais|real|conto|contos|pila|pilas))?(?:\s*e\s*(\d{1,2})\s*centavos?|(\s+e\s+(\d{2})(?!\d)))?/i;
 
 function parseAmount(raw: string, centsPart: string | undefined): number | null {
   let normalized = raw;
@@ -93,8 +95,11 @@ export function parseTransactionText(text: string, today: string): TransactionDr
   let amount: number | null = null;
   const amountMatch = AMOUNT_PATTERN.exec(remaining);
   if (amountMatch) {
-    amount = parseAmount(amountMatch[1]!, amountMatch[2]);
-    remaining = remaining.replace(amountMatch[0], " ");
+    const raw = amountMatch[1]!;
+    const spokenCents = /^\d+$/.test(raw) ? amountMatch[4] : undefined;
+    amount = parseAmount(raw, amountMatch[2] ?? spokenCents);
+    const matched = !amountMatch[2] && !spokenCents && amountMatch[3] ? amountMatch[0].slice(0, -amountMatch[3].length) : amountMatch[0];
+    remaining = remaining.replace(matched, " ");
   }
 
   const type: TransactionType = tokenize(text).some((word) => INCOME_WORDS.includes(word)) ? "income" : "expense";

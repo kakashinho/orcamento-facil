@@ -1,9 +1,11 @@
 import * as Biometrics from "@sbaiahmed1/react-native-biometrics";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import { useSessionStore } from "@/data/session/session-store";
 import { useMaintenanceStore } from "@/data/system/maintenance-store";
 import { overview, transaction, usdWallet, user, wallet, walletSummary } from "@/test-utils/fixtures";
 import { renderWithProviders, setupApi, signIn } from "@/test-utils/render";
+import { ArchiveScreen } from "./archive/archive-screen";
 import { HomeScreen } from "./home/home-screen";
 import { useThemePreference } from "./preferences/theme-preference";
 import { PreferencesScreen } from "./preferences/preferences-screen";
@@ -29,12 +31,21 @@ describe("início (R55, R83)", () => {
     expect(api.callsTo("GET", "/api/reports/overview")).toHaveLength(1);
   });
 
-  it("abre o formulário de registro pelo atalho", async () => {
+  it("abre o formulário de registro pelo botão Registrar", async () => {
     setupApi();
     await renderWithProviders(<HomeScreen />, { sheets: true });
     await screen.findByText("R$ 2.584,00");
-    await fireEvent.press(screen.getByRole("button", { name: "Registrar transação" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Registrar" }));
     expect(await screen.findByText("Nova transação")).toBeOnTheScreen();
+  });
+
+  it("tem o microfone no topo e abre o registro já ouvindo (R65)", async () => {
+    setupApi();
+    await renderWithProviders(<HomeScreen />, { sheets: true });
+    await screen.findByText("R$ 2.584,00");
+    await fireEvent.press(screen.getByTestId("home-voice-button"));
+    expect(await screen.findByText("Ouvindo… fale o valor e a descrição")).toBeOnTheScreen();
+    expect(ExpoSpeechRecognitionModule.start).toHaveBeenCalledWith(expect.objectContaining({ lang: "pt-BR" }));
   });
 
   it("avisa a manutenção e bloqueia os atalhos de escrita (R72)", async () => {
@@ -43,7 +54,8 @@ describe("início (R55, R83)", () => {
     await renderWithProviders(<HomeScreen />, { sheets: true });
     expect(await screen.findByTestId("maintenance-banner")).toBeOnTheScreen();
     expect(screen.getByText(/Atualização em andamento\./)).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Registrar transação" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Registrar" })).toBeDisabled();
+    expect(screen.getByTestId("home-voice-button")).toBeDisabled();
   });
 
   it("mostra a lista vazia de forma amigável", async () => {
@@ -208,18 +220,12 @@ describe("preferências (R28, R40, R42, R52, R72)", () => {
     expect(await screen.findByText("Biometria ativada neste aparelho")).toBeOnTheScreen();
   });
 
-  it("arquiva transações antigas em lote (R52)", async () => {
+  it("abre o arquivo de transações pela linha das Preferências (R52)", async () => {
     await signIn();
-    const api = setupApi().on("POST", "/api/transactions/archive", { body: { archived: 12 } });
+    setupApi();
     await renderWithProviders(<PreferencesScreen />);
-    await fireEvent.press(screen.getByRole("button", { name: "Arquivar transações antigas" }));
-    await fireEvent.press(await screen.findByRole("button", { name: "Arquivar" }));
-    await waitFor(() =>
-      expect(api.lastCall("POST", "/api/transactions/archive")!.body).toEqual({
-        before: expect.stringMatching(/^\d{4}-01-01$/),
-      }),
-    );
-    expect(await screen.findByText("12 transações arquivadas")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: /Arquivo de transações/ }));
+    expect(mockRouter.push).toHaveBeenCalledWith("/archive");
   });
 
   it("só administradores veem o modo manutenção e podem ligá-lo (R72)", async () => {
@@ -237,6 +243,82 @@ describe("preferências (R28, R40, R42, R52, R72)", () => {
     await fireEvent.press(screen.getByRole("switch", { name: "Modo manutenção" }));
     await waitFor(() => expect(api.lastCall("PUT", "/api/admin/maintenance")!.body).toEqual({ enabled: true }));
     await waitFor(() => expect(useMaintenanceStore.getState().enabled).toBe(true));
+  });
+});
+
+const undoResponse = (action: string, label: string) => ({
+  body: {
+    undone: { id: "h1", action, label, entityType: "transaction", entityId: "x", createdAt: "" },
+    message: "ok",
+  },
+});
+
+describe("arquivo de transações (R52, R49)", () => {
+  beforeEach(() => signIn());
+
+  const archivedList = (...items: ReturnType<typeof transaction>[]) => ({
+    body: { data: items, nextCursor: null },
+  });
+
+  it("lista as arquivadas, restaura uma e oferece desfazer", async () => {
+    const api = setupApi()
+      .on(
+        "GET",
+        "/api/transactions",
+        archivedList(transaction({ id: "a1", description: "Mercado antigo", archived: true })),
+      )
+      .on("POST", "/api/transactions/:id/unarchive", { body: transaction({ id: "a1", archived: false }) })
+      .on("POST", "/api/history/undo", undoResponse("transaction.unarchive", "Transação restaurada"));
+    await renderWithProviders(<ArchiveScreen />, { sheets: true });
+    expect(await screen.findByText("Mercado antigo")).toBeOnTheScreen();
+    expect(api.lastCall("GET", "/api/transactions")!.query).toMatchObject({ archived: "true" });
+
+    await fireEvent.press(screen.getByRole("button", { name: "Restaurar Mercado antigo" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/transactions/:id/unarchive")).toHaveLength(1));
+    expect(api.lastCall("POST", "/api/transactions/:id/unarchive")!.path).toBe("/api/transactions/a1/unarchive");
+    expect(await screen.findByText("Transação restaurada")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Desfazer" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/history/undo")).toHaveLength(1));
+  });
+
+  it("arquiva as antigas em lote e permite desfazer", async () => {
+    const api = setupApi()
+      .on("GET", "/api/transactions", archivedList())
+      .on("POST", "/api/transactions/archive", { body: { archived: 12 } })
+      .on("POST", "/api/history/undo", undoResponse("transaction.bulk_archive", "Arquivamento em lote"));
+    await renderWithProviders(<ArchiveScreen />, { sheets: true });
+    expect(await screen.findByText("Nada arquivado")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId("archive-before-button"));
+    await waitFor(() =>
+      expect(api.lastCall("POST", "/api/transactions/archive")!.body).toEqual({
+        before: expect.stringMatching(/^\d{4}-01-01$/),
+      }),
+    );
+    expect(await screen.findByText("12 transações arquivadas")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Desfazer" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/history/undo")).toHaveLength(1));
+  });
+
+  it("restaura todas depois de confirmar", async () => {
+    const api = setupApi()
+      .on(
+        "GET",
+        "/api/transactions",
+        archivedList(
+          transaction({ id: "a1", description: "Uber", archived: true }),
+          transaction({ id: "a2", description: "Cinema", archived: true }),
+        ),
+      )
+      .on("POST", "/api/transactions/:id/unarchive", { body: transaction({ archived: false }) });
+    await renderWithProviders(<ArchiveScreen />, { sheets: true });
+    await screen.findByText("Uber");
+    await fireEvent.press(screen.getByRole("button", { name: "Restaurar todas" }));
+    expect(await screen.findByText("Restaurar todas?")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: "Restaurar" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/transactions/:id/unarchive")).toHaveLength(2));
+    expect(await screen.findByText("2 transações restauradas")).toBeOnTheScreen();
   });
 });
 

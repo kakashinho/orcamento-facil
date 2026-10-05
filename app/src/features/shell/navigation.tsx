@@ -12,6 +12,8 @@ export const DESTINATIONS: { name: string; label: string; icon: IconName }[] = [
 ];
 
 export const NAVIGATION_BAR_HEIGHT = 80;
+/** Folga mínima sob a barra: o Android nem sempre informa a altura dos botões do sistema. */
+export const MIN_BOTTOM_INSET = 16;
 
 /**
  * Navegação principal Material 3 (R80/R82): barra inferior em celulares e trilho lateral
@@ -20,6 +22,7 @@ export const NAVIGATION_BAR_HEIGHT = 80;
 export function AppNavigation({ state, navigation, wide }: BottomTabBarProps & { wide: boolean }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, MIN_BOTTOM_INSET);
 
   const items = DESTINATIONS.map((destination) => {
     const index = state.routes.findIndex((r) => r.name === destination.name);
@@ -94,8 +97,8 @@ export function AppNavigation({ state, navigation, wide }: BottomTabBarProps & {
       style={[
         styles.bar,
         {
-          height: NAVIGATION_BAR_HEIGHT + insets.bottom,
-          paddingBottom: insets.bottom,
+          height: NAVIGATION_BAR_HEIGHT + bottomInset,
+          paddingBottom: bottomInset,
           backgroundColor: withAlpha(colors.surfaceVariant, 0.6),
           borderTopColor: withAlpha(colors.outlineVariant, 0.4),
         },

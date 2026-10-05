@@ -31,7 +31,8 @@ export interface HttpLogger {
 }
 
 export interface HttpClientOptions {
-  baseUrl: string;
+  /** URL da API; pode ser uma função, para mudar em tempo de execução (endereço escolhido no login). */
+  baseUrl: string | (() => string);
   fetch?: typeof fetch;
   timeoutMs?: number;
   session?: SessionTokens;
@@ -112,12 +113,13 @@ async function parseBody<T>(response: Response): Promise<T> {
 }
 
 export function createHttpClient(options: HttpClientOptions): HttpClient {
-  const baseUrl = options.baseUrl.replace(/\/+$/, "");
+  const baseUrlOf = () =>
+    (typeof options.baseUrl === "function" ? options.baseUrl() : options.baseUrl).replace(/\/+$/, "");
   const doFetch = options.fetch ?? ((input, init) => fetch(input, init));
   const timeoutMs = options.timeoutMs ?? 20_000;
   const { session, logger } = options;
 
-  const url = (path: string, query?: Query) => `${baseUrl}${path}${buildQuery(query)}`;
+  const url = (path: string, query?: Query) => `${baseUrlOf()}${path}${buildQuery(query)}`;
 
   async function send<T>(method: HttpMethod, path: string, opts: RequestOptions, retried: boolean): Promise<T> {
     const useAuth = opts.auth !== false;
@@ -184,7 +186,9 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
   }
 
   const client: HttpClient = {
-    baseUrl,
+    get baseUrl() {
+      return baseUrlOf();
+    },
     request: (method, path, opts = {}) => send(method, path, opts, false),
     get: (path, opts) => client.request("GET", path, opts),
     post: (path, body, opts) => client.request("POST", path, { ...opts, body }),

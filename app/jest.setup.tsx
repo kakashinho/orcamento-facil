@@ -5,6 +5,7 @@ import { act } from "react";
 import { queryClient } from "@/data/client";
 import { useSessionStore } from "@/data/session/session-store";
 import { useMaintenanceStore } from "@/data/system/maintenance-store";
+import { useServerAddress } from "@/core/config/server-address";
 import { useThemePreference } from "@/features/preferences/theme-preference";
 import { logger } from "@/core/logging/logger";
 import { secureStoreData, speechEvents } from "@/test-utils/native-mocks";
@@ -17,6 +18,7 @@ notifyManager.setNotifyFunction((fn) => {
 const initialSession = useSessionStore.getState();
 const initialMaintenance = useMaintenanceStore.getState();
 const initialTheme = useThemePreference.getState();
+const initialServer = useServerAddress.getState();
 
 afterEach(async () => {
   // Desmonta as telas antes de reiniciar os estados globais (evita atualizações fora do act).
@@ -25,6 +27,7 @@ afterEach(async () => {
   useSessionStore.setState(initialSession, true);
   useMaintenanceStore.setState(initialMaintenance, true);
   useThemePreference.setState(initialTheme, true);
+  useServerAddress.setState(initialServer, true);
   logger.clear();
   secureStoreData().clear();
   speechEvents.__reset();

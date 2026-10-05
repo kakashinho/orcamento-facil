@@ -105,6 +105,40 @@ describe("login (R03, R87)", () => {
   });
 });
 
+describe("endereço do servidor (demonstração)", () => {
+  it("troca o servidor pela tela de login, guarda no aparelho e passa a usá-lo", async () => {
+    const api = setupApi().on("POST", "/api/auth/login", { body: authResult });
+    await renderWithProviders(<LoginScreen />);
+    await fireEvent.press(screen.getByTestId("server-address-button"));
+    await fireEvent.changeText(screen.getByTestId("server-address-input"), "192.168.0.99");
+    await fireEvent.press(screen.getByRole("button", { name: "Salvar" }));
+
+    expect(secureStoreData().get(storageKeys.serverAddress)).toBe("http://192.168.0.99");
+    expect(await screen.findByText("Servidor: 192.168.0.99")).toBeOnTheScreen();
+
+    await fireEvent.changeText(screen.getByLabelText("E-mail ou nome de usuário"), "joao");
+    await fireEvent.changeText(screen.getByLabelText("Senha"), "Senha@Forte123");
+    await fireEvent.press(screen.getByRole("button", { name: "Entrar" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/auth/login")).toHaveLength(1));
+    expect(api.lastCall("POST", "/api/auth/login")!.host).toBe("192.168.0.99");
+  });
+
+  it("recusa endereço inválido e volta ao padrão", async () => {
+    setupApi();
+    await renderWithProviders(<LoginScreen />);
+    await fireEvent.press(screen.getByTestId("server-address-button"));
+    await fireEvent.changeText(screen.getByTestId("server-address-input"), "192.168 .0.1");
+    await fireEvent.press(screen.getByRole("button", { name: "Salvar" }));
+    expect(await screen.findByText(/Endereço inválido/)).toBeOnTheScreen();
+
+    await fireEvent.changeText(screen.getByTestId("server-address-input"), "10.1.1.1");
+    await fireEvent.press(screen.getByRole("button", { name: "Salvar" }));
+    await fireEvent.press(screen.getByTestId("server-address-button"));
+    await fireEvent.press(screen.getByRole("button", { name: "Usar o padrão" }));
+    expect(secureStoreData().has(storageKeys.serverAddress)).toBe(false);
+  });
+});
+
 describe("cadastro (R02)", () => {
   async function fill(password: string) {
     await fireEvent.changeText(screen.getByLabelText("Nome de usuário"), "ana.silva");

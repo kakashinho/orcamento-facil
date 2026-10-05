@@ -76,7 +76,7 @@ erro    → `details[].path` vira mensagem embaixo do campo; demais erros, aviso
 | `Button`, `IconButton`, `FAB`, `Chip`, `SegmentedControl`, `Switch` | Controles MD3 com estados acessíveis |
 | `TextField`, `DateField` | Campos com rótulo, erro por campo e seletor nativo de data |
 | `Card`, `Banner`, `EmptyState`, `Skeleton`, `ProgressBar`, `Divider` | Estrutura e feedback de carregamento |
-| `Sheet`, `Dialog`, `Snackbar` | Folha inferior, diálogo de confirmação e aviso com ação |
+| `Sheet`, `Dialog`, `Snackbar` | Folha inferior (mede a área segura dentro do próprio Modal), diálogo de confirmação e aviso com ação |
 
 ## 5. Mapa de requisitos
 
@@ -97,7 +97,7 @@ erro    → `details[].path` vira mensagem embaixo do campo; demais erros, aviso
 | R12 | Diálogo "Excluir transação?" em `transaction-details-sheet.tsx` | transaction-sheets |
 | R48 | Duplicar nos detalhes | transaction-sheets, contrato |
 | R49 | Snackbar "Desfazer" (`use-undoable-feedback.ts` → `POST /api/history/undo`) | transaction-sheets, contrato |
-| R65 | `voice/use-voice-capture.ts`, `listening-panel.tsx` | transaction-sheets, contrato |
+| R65 | Atalho de microfone no lugar do principal do Início (`home-screen.tsx`) e botão no formulário; `voice/use-voice-capture.ts`, `listening-panel.tsx` | transaction-sheets, screens, contrato |
 | R77 | `features/feedback/success-overlay.tsx` | transaction-sheets, screens |
 | R07, R08 | Categorias por tipo e `new-category-dialog.tsx` | transaction-sheets, contrato |
 | R43 | `tags-input.tsx`, filtro por tag | transaction-sheets, contrato |
@@ -106,7 +106,7 @@ erro    → `details[].path` vira mensagem embaixo do campo; demais erros, aviso
 | R10 | Busca, categoria, tag e período no histórico | transactions-tabs, contrato |
 | R26 | Navegação por mês e resumo do mês | transactions-tabs, contrato |
 | R70 | Ordenação por data, valor e categoria | transactions-tabs, contrato |
-| R52 | Arquivar/restaurar, filtro de arquivadas e arquivamento em lote | transaction-sheets, transactions-tabs, screens, contrato |
+| R52 | Arquivar/restaurar nos detalhes, filtro de arquivadas e a tela Arquivo (`features/archive`, aberta pelas Preferências): arquivamento em lote, lista de arquivadas, restaurar uma ou todas, com Desfazer | transaction-sheets, transactions-tabs, screens, contrato |
 | R41 | `statement-tab.tsx` + PDF baixado do servidor e compartilhado | transactions-tabs, contrato |
 | R58 | `cash-flow-tab.tsx` com saldo acumulado na moeda principal | transactions-tabs, transaction-rules, contrato |
 | R42 | Tema sistema/claro/escuro, salvo no aparelho e no perfil | theme-preference, screens |

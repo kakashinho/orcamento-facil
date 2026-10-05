@@ -1,11 +1,13 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import { useApiUrl } from "@/core/config/server-address";
 import { errorMessage, isApiError } from "@/core/http/api-error";
 import { useSessionStore } from "@/data/session/session-store";
 import { Banner, Button, Icon, radii, Text, TextField, useTheme, withAlpha } from "@/ui";
 import { BiometricError } from "./biometric-auth";
 import { AuthLayout, OrDivider } from "./components/auth-layout";
+import { ServerAddressDialog } from "./components/server-address-dialog";
 import { useBiometricSignIn, useSignIn, useStoredBiometric } from "./use-auth";
 
 function formatCountdown(seconds: number): string {
@@ -33,6 +35,9 @@ export function LoginScreen() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [lockedFor, setLockedFor] = useState(0);
+  const apiUrl = useApiUrl();
+  const [serverOpen, setServerOpen] = useState(false);
+  const [serverKey, setServerKey] = useState(0);
 
   useEffect(() => {
     if (lockedFor <= 0) return;
@@ -199,6 +204,18 @@ export function LoginScreen() {
         <Text color="onSurfaceVariant">Não tem conta?</Text>
         <Button variant="text" label="Cadastre-se" onPress={() => router.push("/register")} />
       </View>
+
+      <Button
+        variant="text"
+        icon="language"
+        label={`Servidor: ${apiUrl.replace(/^https?:\/\//, "")}`}
+        onPress={() => {
+          setServerKey((k) => k + 1);
+          setServerOpen(true);
+        }}
+        testID="server-address-button"
+      />
+      <ServerAddressDialog key={serverKey} open={serverOpen} onClose={() => setServerOpen(false)} />
     </AuthLayout>
   );
 }

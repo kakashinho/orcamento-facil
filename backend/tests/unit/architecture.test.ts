@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Garante as regras de camadas de docs/standards/03-layers-and-dependencies.md:
+ * Garante as regras de camadas descritas em docs/architecture/implementation.md:
  *   route → controller → service → repository → Drizzle
  * Se alguém "pular" uma camada, este teste falha apontando o arquivo.
  */

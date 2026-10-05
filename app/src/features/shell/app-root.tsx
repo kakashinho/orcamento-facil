@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useEffect, type ReactNode } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useServerAddress } from "@/core/config/server-address";
 import { bindAppFocus } from "@/core/query/query-client";
 import { queryClient, session } from "@/data/client";
 import { useSystemStatus } from "@/data/queries/account";
@@ -45,7 +46,11 @@ export function RootNavigator() {
 
   useEffect(() => {
     void useThemePreference.getState().hydrate();
-    void session.restore();
+    // O endereço salvo vale já na restauração da sessão (que chama a API).
+    void useServerAddress
+      .getState()
+      .hydrate()
+      .then(() => session.restore());
     return bindAppFocus();
   }, []);
 

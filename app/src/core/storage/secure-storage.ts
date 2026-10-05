@@ -39,4 +39,5 @@ export const storageKeys = {
   refreshToken: "of.session.refreshToken",
   biometricCredential: "of.biometric.credential",
   themePreference: "of.preferences.theme",
+  serverAddress: "of.settings.serverAddress",
 } as const;

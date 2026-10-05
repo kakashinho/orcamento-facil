@@ -37,7 +37,7 @@ export function HomeScreen() {
   const { colors } = useTheme();
   const user = useCurrentUser();
   const maintenance = useMaintenance();
-  const { openTransactionForm, openTransfer, openTransactionDetails } = useAppSheets();
+  const { openTransactionForm, openVoiceTransaction, openTransfer, openTransactionDetails } = useAppSheets();
   const overview = useOverview();
   const iconFor = useCategoryIconResolver();
   const data = overview.data;
@@ -124,13 +124,15 @@ export function HomeScreen() {
           </View>
 
           <View style={styles.shortcuts}>
+            {/* Registro por voz (R65): ocupa o lugar do atalho principal da tela inicial. */}
             <Shortcut
-              icon="add_circle"
-              label={"Registrar\ntransação"}
-              background={colors.secondaryContainer}
-              foreground={colors.onSecondaryContainer}
+              icon="mic"
+              label={"Registrar\npor voz"}
+              background={colors.primary}
+              foreground={colors.onPrimary}
               disabled={maintenance.active}
-              onPress={() => openTransactionForm()}
+              onPress={openVoiceTransaction}
+              testID="home-voice-button"
             />
             <Shortcut
               icon="swap_horiz"
@@ -241,6 +243,7 @@ function Shortcut({
   foreground,
   onPress,
   disabled,
+  testID,
 }: {
   icon: IconName;
   label: string;
@@ -248,9 +251,11 @@ function Shortcut({
   foreground: string;
   onPress: () => void;
   disabled?: boolean;
+  testID?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label.replace("\n", " ")}
       accessibilityState={{ disabled: !!disabled }}

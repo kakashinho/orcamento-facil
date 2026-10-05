@@ -1,7 +1,7 @@
 # Orçamento Fácil — aplicativo Android
 
 Aplicativo da Sprint 1 do Orçamento Fácil, em **React Native 0.86 (Expo SDK 57)**, empacotado só para
-**Android** (R79). Consome a API RESTful de [`../backend`](../backend/GUIA.md) e segue o visual do protótipo
+**Android** (R79). Consome a API RESTful de [`../backend`](../backend/docs/GUIA.md) e segue o visual do protótipo
 [`../NavegVelOrAmentoFCil`](../NavegVelOrAmentoFCil) (Material Design 3, R80).
 
 - Arquitetura, camadas e mapa de requisitos: [docs/ARQUITETURA.md](docs/ARQUITETURA.md)
@@ -14,10 +14,10 @@ Aplicativo da Sprint 1 do Orçamento Fácil, em **React Native 0.86 (Expo SDK 57
 | Node.js | 22.13+ ou 24 |
 | JDK | 17 ou 21 (o do Android Studio serve: `C:\Program Files\Android\Android Studio\jbr`) |
 | Android SDK | Platform 36, Build-Tools 36, NDK 27 (instale pelo Android Studio) |
-| Backend | rodando localmente (veja `backend/GUIA.md`) |
+| Backend | rodando localmente (veja `backend/docs/GUIA.md`) |
 
-O app usa módulos nativos (biometria, voz, armazenamento cifrado), então **não roda no Expo Go**: é preciso
-um build de desenvolvimento ou de release.
+No **Expo Go** o app abre e funciona, **sem biometria e sem voz** (são módulos nativos que o Expo Go não traz).
+Para ter tudo, instale um build de desenvolvimento ou o APK de release.
 
 ## Configuração
 
@@ -27,7 +27,8 @@ Copie `.env.example` para `.env` e ajuste a URL da API:
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3000   # emulador: 10.0.2.2 é o localhost do computador
 ```
 
-Num aparelho físico, use o IP do computador na rede (ex.: `http://192.168.0.10:3000`). Com `http://`, o
+Num aparelho físico, use o IP do computador na rede (ex.: `http://192.168.0.10:3000`; com a API no Docker, que
+publica o Nginx na porta 80, use `http://192.168.0.10`). Com `http://`, o
 build libera tráfego sem TLS; em produção, use `https://`.
 
 ## Rodando

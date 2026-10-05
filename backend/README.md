@@ -4,10 +4,9 @@ API em Node.js que atende o aplicativo Android (React Native) do Orçamento Fác
 
 | Para… | Veja |
 |---|---|
-| **Aprender: rodar, ver rotas, validação e estrutura** | [GUIA.md](GUIA.md) |
+| **Aprender: rodar, ver rotas, validação e estrutura** | [GUIA.md](docs/GUIA.md) |
 | Usar a API (endpoints, formatos, exemplos) | [docs/api/README.md](docs/api/README.md) e o Swagger em `/docs` |
 | Entender a arquitetura e as decisões | [docs/architecture/implementation.md](docs/architecture/implementation.md) |
-| Ver como cada requisito foi atendido | [docs/requirements/sprint-1-implementation.md](docs/requirements/sprint-1-implementation.md) |
 
 ## Stack
 
@@ -77,7 +76,7 @@ O `.dockerignore` mantém fora da imagem o `.env`, o `node_modules` local e os a
 
 ## Estrutura
 
-Monólito modular em camadas, conforme `docs/standards/` (explicação completa no [GUIA.md](GUIA.md)):
+Monólito modular em camadas (explicação completa no [GUIA.md](docs/GUIA.md)):
 
 ```text
 src/

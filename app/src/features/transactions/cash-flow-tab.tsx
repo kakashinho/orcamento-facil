@@ -51,6 +51,13 @@ export function CashFlowTab() {
 
   const header = (
     <View style={[styles.header, { paddingHorizontal: layout.gutter }]}>
+      <Card style={styles.card}>
+        <Text variant="bodySmall" weight="medium" style={styles.cardTitle}>
+          Receitas e despesas · últimos 6 meses
+        </Text>
+        <MonthlyChart report={monthly.data} loading={monthly.isPending} />
+      </Card>
+
       <FilterToolbar
         label={`${formatDate(period.from)} — ${formatDate(period.to)}`}
         active={active}
@@ -76,13 +83,6 @@ export function CashFlowTab() {
           ) : null}
         </View>
       ) : null}
-
-      <Card style={styles.card}>
-        <Text variant="bodySmall" weight="medium" style={styles.cardTitle}>
-          Receitas e despesas · últimos 6 meses
-        </Text>
-        <MonthlyChart report={monthly.data} loading={monthly.isPending} />
-      </Card>
 
       {total ? (
         <Card style={styles.card} testID="cash-flow-totals">

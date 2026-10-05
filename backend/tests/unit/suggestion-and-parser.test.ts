@@ -69,6 +69,14 @@ describe("interpretação de frase falada (R65)", () => {
     expect(draft).toMatchObject({ type: "expense", amount: 120.5, date: "2026-10-01", description: "Conta de luz" });
   });
 
+  it("centavos falados sem a palavra 'centavos' ('35 e 90' = 35,90)", () => {
+    expect(parseTransactionText("gastei 35 e 90 no mercado ontem", today)).toMatchObject({ amount: 35.9, description: "Mercado" });
+    expect(parseTransactionText("paguei 35 reais e 90 de luz", today)).toMatchObject({ amount: 35.9, description: "Luz" });
+    // Valor com vírgula não recebe centavos falados; "e 900" não é centavo.
+    expect(parseTransactionText("gastei 35,90 e 10 no mercado", today)).toMatchObject({ amount: 35.9, description: "10 no mercado" });
+    expect(parseTransactionText("gastei 35 e 900 no mercado", today)).toMatchObject({ amount: 35, description: "900 no mercado" });
+  });
+
   it("sem valor reconhecível devolve amount nulo e data de hoje", () => {
     expect(parseTransactionText("comprei pão", today)).toEqual({
       type: "expense",

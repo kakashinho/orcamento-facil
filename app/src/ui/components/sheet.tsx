@@ -11,7 +11,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { radii } from "../theme/metrics";
 import { useTheme } from "../theme/theme-provider";
 import { Text } from "./text";
@@ -92,13 +92,40 @@ export interface SheetProps {
  * Em telas largas fica centralizada com no máximo 640dp (R82).
  */
 export function Sheet({ open, onClose, title, children, testID }: SheetProps) {
+  const { mounted, progress } = usePresence(open, 340, 200);
+  if (!mounted) return null;
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
+      {/* O Modal é outra janela: os insets (barra de botões do Android) precisam ser medidos nela. */}
+      <SafeAreaProvider>
+        <SheetBody progress={progress} onClose={onClose} title={title} testID={testID}>
+          {children}
+        </SheetBody>
+      </SafeAreaProvider>
+    </Modal>
+  );
+}
+
+/** Margem mínima abaixo do conteúdo, mesmo quando o Android não informa a barra de navegação. */
+const MIN_BOTTOM_PADDING = 40;
+
+function SheetBody({
+  progress,
+  onClose,
+  title,
+  testID,
+  children,
+}: Pick<SheetProps, "onClose" | "title" | "testID" | "children"> & { progress: Animated.Value }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const { mounted, progress } = usePresence(open, 340, 200);
-
-  if (!mounted) return null;
-
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] });
 
   return (
@@ -134,7 +161,10 @@ export function Sheet({ open, onClose, title, children, testID }: SheetProps) {
             </Pressable>
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+              contentContainerStyle={[
+                styles.content,
+                { paddingBottom: Math.max(insets.bottom, 24) + MIN_BOTTOM_PADDING },
+              ]}
             >
               <InsideSheetContext.Provider value>{children}</InsideSheetContext.Provider>
             </ScrollView>

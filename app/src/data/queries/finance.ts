@@ -144,6 +144,25 @@ export function useSetArchived() {
   });
 }
 
+/** Restaura todas as transações arquivadas (uma chamada por transação; a lista muda a cada restauração). */
+export function useRestoreAllArchived() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await api.transactions.list({ archived: "true", limit: 100, cursor });
+        ids.push(...page.data.map((transaction) => transaction.id));
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+      for (const id of ids) await api.transactions.unarchive(id);
+      return { restored: ids.length };
+    },
+    onSettled: () => invalidateFinance(queryClient),
+  });
+}
+
 export function useArchiveBefore() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -1,5 +1,5 @@
 import * as Speech from "expo-speech";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { errorMessage, fieldErrorsOf } from "@/core/http/api-error";
 import { useDebouncedValue } from "@/core/hooks/use-debounced-value";
@@ -18,7 +18,7 @@ import { useMaintenance } from "@/data/system/maintenance-store";
 import { categoryIcon } from "@/domain/catalog";
 import { todayIso } from "@/domain/dates";
 import { formatAmountInput, formatMoney } from "@/domain/money";
-import { Banner, Button, Chip, DateField, IconButton, SegmentedControl, Sheet, Text, TextField } from "@/ui";
+import { Banner, Button, Chip, DateField, SegmentedControl, Sheet, Text, TextField } from "@/ui";
 import { useFeedback } from "../feedback/feedback-provider";
 import { useUndoableFeedback } from "../feedback/use-undoable-feedback";
 import { MaintenanceBanner } from "../system/maintenance-banner";
@@ -49,10 +49,13 @@ const NO_CATEGORIES: Category[] = [];
 export function TransactionFormSheet({
   open,
   editing,
+  startWithVoice = false,
   onClose,
 }: {
   open: boolean;
   editing: Transaction | null;
+  /** Começa a ouvir assim que a folha abre (atalho de voz da tela inicial, R65). */
+  startWithVoice?: boolean;
   onClose: () => void;
 }) {
   const { celebrate } = useFeedback();
@@ -120,6 +123,13 @@ export function TransactionFormSheet({
     });
   };
   const voice = useVoiceCapture(applyVoiceText);
+  const startVoice = voice.start;
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!open || !startWithVoice || editing || autoStarted.current) return;
+    autoStarted.current = true;
+    void startVoice();
+  }, [open, startWithVoice, editing, startVoice]);
 
   const handleError = (error: unknown) => {
     const fields = mapServerFieldErrors(fieldErrorsOf(error));
@@ -176,6 +186,15 @@ export function TransactionFormSheet({
         ) : (
           <View style={styles.form}>
             <MaintenanceBanner compact />
+            {!editing ? (
+              <Button
+                variant="tonal"
+                icon="mic"
+                label="Registrar por voz"
+                onPress={voice.start}
+                disabled={parse.isPending}
+              />
+            ) : null}
             {voice.error ? (
               <Banner icon="mic" tone="tertiary">
                 {voice.error}
@@ -288,16 +307,6 @@ export function TransactionFormSheet({
             />
 
             <View style={styles.actions}>
-              {!editing ? (
-                <IconButton
-                  name="mic"
-                  bordered
-                  color="primary"
-                  onPress={voice.start}
-                  disabled={parse.isPending}
-                  accessibilityLabel="Registrar por voz"
-                />
-              ) : null}
               <View style={styles.spacer} />
               <Button variant="text" label="Cancelar" onPress={onClose} />
               <Button

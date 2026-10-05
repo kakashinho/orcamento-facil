@@ -1,19 +1,18 @@
+import { useRouter } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { env } from "@/core/config/env";
+import { useApiUrl } from "@/core/config/server-address";
 import { errorMessage } from "@/core/http/api-error";
 import { api, session } from "@/data/client";
 import { useSetMaintenance, useUpdateProfile } from "@/data/queries/account";
-import { useArchiveBefore } from "@/data/queries/finance";
 import { useCurrentUser } from "@/data/session/session-store";
 import { useMaintenance } from "@/data/system/maintenance-store";
-import { formatDate, todayIso } from "@/domain/dates";
 import {
   Button,
   Card,
   ContentContainer,
-  DateField,
   Dialog,
   Icon,
   SegmentedControl,
@@ -23,7 +22,7 @@ import {
   withAlpha,
   type IconName,
 } from "@/ui";
-import { disableBiometric, enableBiometric, isBiometricAvailable } from "../auth/biometric-auth";
+import { disableBiometric, enableBiometric } from "../auth/biometric-auth";
 import { useStoredBiometric } from "../auth/use-auth";
 import { useFeedback } from "../feedback/feedback-provider";
 import { CurrencyPicker } from "../wallets/components/currency-picker";
@@ -32,29 +31,26 @@ import { useThemeControls } from "./use-theme-toggle";
 
 /** Preferências: tema (R42), moeda principal (R28), conta e biometria (R40), dados (R52) e manutenção (R72). */
 export function PreferencesScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const user = useCurrentUser();
+  const apiUrl = useApiUrl();
   const queryClient = useQueryClient();
   const { showSnackbar } = useFeedback();
   const { preference, setPreference } = useThemeControls();
   const updateProfile = useUpdateProfile();
   const maintenance = useMaintenance();
   const setMaintenance = useSetMaintenance();
-  const archiveBefore = useArchiveBefore();
   const stored = useStoredBiometric();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordKey, setPasswordKey] = useState(0);
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const [archiveDate, setArchiveDate] = useState(() => `${todayIso().slice(0, 4)}-01-01`);
   const [logoutAllOpen, setLogoutAllOpen] = useState(false);
 
   const biometricEnabled = !!stored.data && stored.data.account === user?.email;
   const biometric = useMutation({
     mutationFn: async (enable: boolean) => {
       if (enable) {
-        if (!(await isBiometricAvailable({ api }))) {
-          throw new Error("Este aparelho não tem digital cadastrada. Cadastre uma nas configurações do Android.");
-        }
+        // enableBiometric distingue "sem módulo nativo (Expo Go)" de "sem digital cadastrada".
         await enableBiometric(user?.email ?? "", { api });
       } else {
         await disableBiometric({ api });
@@ -162,9 +158,9 @@ export function PreferencesScreen() {
         <Section title="Dados">
           <Row
             icon="inventory_2"
-            title="Arquivar transações antigas"
-            subtitle="Saem da lista principal e continuam disponíveis para consulta"
-            onPress={() => setArchiveOpen(true)}
+            title="Arquivo de transações"
+            subtitle="Arquivar antigas, ver o que está arquivado e restaurar"
+            onPress={() => router.push("/archive")}
           >
             <Icon name="chevron_right" size={20} />
           </Row>
@@ -190,44 +186,11 @@ export function PreferencesScreen() {
         ) : null}
 
         <Text variant="caption" color="onSurfaceVariant" align="center" style={styles.about}>
-          Orçamento Fácil · v{env.appVersion} · Sprint 1{"\n"}API: {env.apiUrl}
+          Orçamento Fácil · v{env.appVersion} · Sprint 1{"\n"}API: {apiUrl}
         </Text>
       </ContentContainer>
 
       <ChangePasswordSheet key={passwordKey} open={passwordOpen} onClose={() => setPasswordOpen(false)} />
-
-      <Dialog
-        open={archiveOpen}
-        onClose={() => setArchiveOpen(false)}
-        title="Arquivar transações antigas"
-        icon="inventory_2"
-        actions={
-          <>
-            <Button variant="text" label="Cancelar" onPress={() => setArchiveOpen(false)} />
-            <Button
-              label="Arquivar"
-              loading={archiveBefore.isPending}
-              disabled={!archiveDate || maintenance.active}
-              onPress={() =>
-                archiveBefore.mutate(archiveDate, {
-                  onSuccess: ({ archived }) => {
-                    setArchiveOpen(false);
-                    showSnackbar(archived === 1 ? "1 transação arquivada" : `${archived} transações arquivadas`);
-                  },
-                  onError: (error) => showSnackbar(errorMessage(error)),
-                })
-              }
-            />
-          </>
-        }
-      >
-        <View style={styles.dialogBody}>
-          <Text color="onSurfaceVariant">
-            Transações com data anterior a {archiveDate ? formatDate(archiveDate) : "…"} serão arquivadas.
-          </Text>
-          <DateField label="Arquivar antes de" value={archiveDate} onChange={setArchiveDate} />
-        </View>
-      </Dialog>
 
       <Dialog
         open={logoutAllOpen}

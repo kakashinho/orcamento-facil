@@ -115,24 +115,24 @@ São 64 rotas.
 
 ### 2.3 No código
 
-Cada recurso tem um arquivo em `routes/`, e o [src/app.ts](src/app.ts) registra cada um com um prefixo:
+Cada recurso tem um arquivo em `routes/`, e o [src/app.ts](../src/app.ts) registra cada um com um prefixo:
 
 | Prefixo | Arquivo de rotas |
 |---|---|
-| `/api/auth` | [modules/auth/routes/auth.routes.ts](src/modules/auth/routes/auth.routes.ts) |
-| `/api/auth/biometric` | [modules/auth/routes/biometric.routes.ts](src/modules/auth/routes/biometric.routes.ts) |
-| `/api/users` | [modules/auth/routes/user.routes.ts](src/modules/auth/routes/user.routes.ts) |
-| `/api/wallets` | [modules/finance/routes/wallet.routes.ts](src/modules/finance/routes/wallet.routes.ts) |
-| `/api/categories` | [modules/finance/routes/category.routes.ts](src/modules/finance/routes/category.routes.ts) |
-| `/api/tags` | [modules/finance/routes/tag.routes.ts](src/modules/finance/routes/tag.routes.ts) |
-| `/api/transactions` | [modules/finance/routes/transaction.routes.ts](src/modules/finance/routes/transaction.routes.ts) |
-| `/api/transfers` | [modules/finance/routes/transfer.routes.ts](src/modules/finance/routes/transfer.routes.ts) |
-| `/api/exchange-rates` | [modules/finance/routes/exchange-rate.routes.ts](src/modules/finance/routes/exchange-rate.routes.ts) |
-| `/api/currencies` | [modules/finance/routes/currency.routes.ts](src/modules/finance/routes/currency.routes.ts) |
-| `/api/history` | [modules/history/routes/history.routes.ts](src/modules/history/routes/history.routes.ts) |
-| `/api/reports` | [modules/reports/routes/report.routes.ts](src/modules/reports/routes/report.routes.ts) |
-| `/api/admin` | [modules/system/routes/admin.routes.ts](src/modules/system/routes/admin.routes.ts) |
-| `/health`, `/api/system/status` | [modules/system/routes/system.routes.ts](src/modules/system/routes/system.routes.ts) |
+| `/api/auth` | [modules/auth/routes/auth.routes.ts](../src/modules/auth/routes/auth.routes.ts) |
+| `/api/auth/biometric` | [modules/auth/routes/biometric.routes.ts](../src/modules/auth/routes/biometric.routes.ts) |
+| `/api/users` | [modules/auth/routes/user.routes.ts](../src/modules/auth/routes/user.routes.ts) |
+| `/api/wallets` | [modules/finance/routes/wallet.routes.ts](../src/modules/finance/routes/wallet.routes.ts) |
+| `/api/categories` | [modules/finance/routes/category.routes.ts](../src/modules/finance/routes/category.routes.ts) |
+| `/api/tags` | [modules/finance/routes/tag.routes.ts](../src/modules/finance/routes/tag.routes.ts) |
+| `/api/transactions` | [modules/finance/routes/transaction.routes.ts](../src/modules/finance/routes/transaction.routes.ts) |
+| `/api/transfers` | [modules/finance/routes/transfer.routes.ts](../src/modules/finance/routes/transfer.routes.ts) |
+| `/api/exchange-rates` | [modules/finance/routes/exchange-rate.routes.ts](../src/modules/finance/routes/exchange-rate.routes.ts) |
+| `/api/currencies` | [modules/finance/routes/currency.routes.ts](../src/modules/finance/routes/currency.routes.ts) |
+| `/api/history` | [modules/history/routes/history.routes.ts](../src/modules/history/routes/history.routes.ts) |
+| `/api/reports` | [modules/reports/routes/report.routes.ts](../src/modules/reports/routes/report.routes.ts) |
+| `/api/admin` | [modules/system/routes/admin.routes.ts](../src/modules/system/routes/admin.routes.ts) |
+| `/health`, `/api/system/status` | [modules/system/routes/system.routes.ts](../src/modules/system/routes/system.routes.ts) |
 
 Um arquivo de rotas só **declara** os endpoints. Cada linha diz o método, o caminho, qual schema valida e
 qual método do controller atende:
@@ -206,9 +206,9 @@ por engano.
 
 | Camada | Onde | O que verifica | Resposta |
 |---|---|---|---|
-| **1. Formato** (DTO) | `schemas/` e [infrastructure/http/common-schemas.ts](src/infrastructure/http/common-schemas.ts) | Campo obrigatório, tipo, tamanho, campo desconhecido, data real e plausível, moeda suportada, fuso válido, UUID, valor > 0 com 2 casas, período coerente (`from` ≤ `to`) | `400 VALIDATION_ERROR` |
+| **1. Formato** (DTO) | `schemas/` e [infrastructure/http/common-schemas.ts](../src/infrastructure/http/common-schemas.ts) | Campo obrigatório, tipo, tamanho, campo desconhecido, data real e plausível, moeda suportada, fuso válido, UUID, valor > 0 com 2 casas, período coerente (`from` ≤ `to`) | `400 VALIDATION_ERROR` |
 | **2. Regra de negócio** | `services/` | Carteira existe e é sua, categoria compatível com o tipo da transação, nome duplicado, senha forte, senha atual correta | `409`/`422` com código específico (`INVALID_WALLET`, `CATEGORY_TYPE_MISMATCH`, `WALLET_NAME_TAKEN`…) |
-| **3. Banco** (constraints) | [infrastructure/database/schema/](src/infrastructure/database/schema/) → migrations | Unicidade, chave estrangeira, CHECK | `409` / `400` |
+| **3. Banco** (constraints) | [infrastructure/database/schema/](../src/infrastructure/database/schema/) → migrations | Unicidade, chave estrangeira, CHECK | `409` / `400` |
 
 A camada 1 só olha o formato e nunca consulta o banco. "Esse e-mail já existe?" é regra de negócio
 (camada 2), com a camada 3 como última garantia.
@@ -218,7 +218,7 @@ Regras gerais dos DTOs, iguais em toda a API:
 - **Estritos:** campo desconhecido é erro (`"categoryID"` no lugar de `"categoryId"` não passa calado).
 - **Textos sem espaços nas pontas:** `"   "` não é um nome válido; `"  Feira "` vira `"Feira"`.
 - **Normalização do que vem do teclado do celular:** e-mail em minúsculas e sem espaços; moeda `" usd "` vira `"USD"`.
-- **Mensagens em português**, prontas para aparecer embaixo do campo. A configuração geral fica em [infrastructure/http/validation-messages.ts](src/infrastructure/http/validation-messages.ts).
+- **Mensagens em português**, prontas para aparecer embaixo do campo. A configuração geral fica em [infrastructure/http/validation-messages.ts](../src/infrastructure/http/validation-messages.ts).
 
 Erros da camada 2 também trazem `details` quando a causa é um campo (ex.: `INVALID_WALLET` aponta
 `walletId`). Assim o app destaca o campo do mesmo jeito para os dois tipos de erro.
@@ -258,7 +258,7 @@ HTTP 422
 ```
 
 Todo erro tem o formato `{ statusCode, code, message, details? }`, garantido por
-[infrastructure/http/error-handler.ts](src/infrastructure/http/error-handler.ts).
+[infrastructure/http/error-handler.ts](../src/infrastructure/http/error-handler.ts).
 
 ---
 
@@ -312,7 +312,7 @@ arquitetura faz isso pelos services públicos deles, nunca acessando as tabelas 
 | **Service** | Aplicar regras, coordenar repositories, abrir transação de banco | Conhecer Fastify, escrever SQL |
 | **Repository** | Fazer queries com Drizzle, cifrar e decifrar valores | Ter regra de negócio, conhecer HTTP |
 
-Essas regras não são só documentação: [tests/unit/architecture.test.ts](tests/unit/architecture.test.ts)
+Essas regras não são só documentação: [tests/unit/architecture.test.ts](../tests/unit/architecture.test.ts)
 falha se algum arquivo "pular" uma camada.
 
 ### 4.3 O caminho de uma requisição
@@ -351,7 +351,7 @@ App ──HTTP──► app.ts
 ### 4.4 Como as peças se conectam (`container.ts`)
 
 Ninguém cria as próprias dependências: nenhum service faz `new Repository()`. O
-[src/container.ts](src/container.ts) monta tudo uma vez, de baixo para cima:
+[src/container.ts](../src/container.ts) monta tudo uma vez, de baixo para cima:
 
 ```ts
 const transactionRepository = new TransactionRepository(db, cipher);            // banco
@@ -368,7 +368,7 @@ mudar nada no código de produção.
 
 1. **DTO:** no `schemas/<recurso>.schema.ts`, crie o schema de request, o de response e a entrada em `<recurso>RouteSchemas`.
 2. **Repository** (se precisar de uma query nova): método em `repositories/<recurso>.repository.ts`.
-3. **Service:** a regra de negócio em `services/<recurso>.service.ts`, usando o repository. Lance `errors.xxx(...)` ([shared/errors/app-error.ts](src/shared/errors/app-error.ts)) quando uma regra impedir a operação.
+3. **Service:** a regra de negócio em `services/<recurso>.service.ts`, usando o repository. Lance `errors.xxx(...)` ([shared/errors/app-error.ts](../src/shared/errors/app-error.ts)) quando uma regra impedir a operação.
 4. **Controller:** um método em `controllers/<recurso>.controller.ts` que chama o service e devolve o DTO.
 5. **Route:** uma linha em `routes/<recurso>.routes.ts` ligando caminho + schema + controller.
 6. **Banco** (se mudar tabela): altere `infrastructure/database/schema/*.ts` → `npm run db:generate` → revise o SQL em `drizzle/` → `npm run db:migrate`.
@@ -378,9 +378,7 @@ mudar nada no código de produção.
 
 ## 5. Essa estrutura é comum?
 
-Sim. É o formato mais comum em backends Node.js (Express, NestJS, Fastify) e o mesmo descrito em
-[docs/standards/01-structure-and-modules.md](docs/standards/01-structure-and-modules.md) e
-[docs/standards/03-layers-and-dependencies.md](docs/standards/03-layers-and-dependencies.md):
+Sim. É o formato mais comum em backends Node.js (Express, NestJS, Fastify) e o adotado neste projeto:
 
 - **Organização por domínio** (`modules/auth`, `modules/finance`…): cada pasta é uma área de negócio, como no NestJS. É o "monólito modular" pedido pela arquitetura do projeto.
 - **Camadas dentro de cada domínio** (`route → controller → service → repository`): separa o que é HTTP, o que é regra e o que é banco. Dá para trocar uma parte sem mexer nas outras, por exemplo testar uma regra sem subir servidor.

@@ -19,7 +19,7 @@ Nginx (proxy, TLS)  ──►  Fastify (Node.js)
 
 ## Camadas
 
-Segue [docs/standards/03-layers-and-dependencies.md](../standards/03-layers-and-dependencies.md). Cada
+Cada
 módulo de domínio tem as mesmas pastas:
 
 | Camada | Pasta | Responsabilidade |

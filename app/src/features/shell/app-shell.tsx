@@ -5,7 +5,7 @@ import { useResponsiveLayout, useTheme } from "@/ui";
 import { useFeedback } from "../feedback/feedback-provider";
 import { AppBar } from "./app-bar";
 import { AppSheetsProvider } from "./app-sheets";
-import { AppNavigation, DESTINATIONS, NAVIGATION_BAR_HEIGHT } from "./navigation";
+import { AppNavigation, DESTINATIONS, MIN_BOTTOM_INSET, NAVIGATION_BAR_HEIGHT } from "./navigation";
 
 /** Estrutura do app logado: barra superior, destinos principais e folhas de formulário. */
 export function AppShell() {
@@ -15,7 +15,8 @@ export function AppShell() {
   const { setBottomOffset } = useFeedback();
 
   useEffect(() => {
-    setBottomOffset(layout.isWide ? insets.bottom : NAVIGATION_BAR_HEIGHT + insets.bottom);
+    const bottomInset = Math.max(insets.bottom, MIN_BOTTOM_INSET);
+    setBottomOffset(layout.isWide ? insets.bottom : NAVIGATION_BAR_HEIGHT + bottomInset);
     return () => setBottomOffset(0);
   }, [layout.isWide, insets.bottom, setBottomOffset]);
 
@@ -34,6 +35,8 @@ export function AppShell() {
         {DESTINATIONS.map((destination) => (
           <Tabs.Screen key={destination.name} name={destination.name} options={{ title: destination.label }} />
         ))}
+        {/* Arquivo de transações: tela aberta pelas Preferências, sem item na barra de navegação. */}
+        <Tabs.Screen name="archive" options={{ title: "Arquivo", href: null }} />
       </Tabs>
     </AppSheetsProvider>
   );
