@@ -50,6 +50,7 @@ const envSchema = z.object({
   // "1:<base64>,2:<base64>"
   DATA_ENCRYPTION_PREVIOUS_KEYS: z.string().default(""),
 
+  SMTP_ETHEREAL: booleanFromEnv.default(false),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_SECURE: booleanFromEnv.default(false),
@@ -96,6 +97,8 @@ export interface AppConfig {
   encryption: { activeKeyVersion: number; keys: Map<number, Buffer> };
   mail: {
     from: string;
+    /** Conta de teste provisória (Ethereal); ignorada se houver SMTP_HOST. */
+    ethereal: boolean;
     smtp?: { host: string; port: number; secure: boolean; user?: string; password?: string };
   };
   exchangeRates: { apiUrl: string; cacheTtlMinutes: number; timeoutMs: number };
@@ -167,6 +170,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     encryption: { activeKeyVersion: env.DATA_ENCRYPTION_KEY_VERSION, keys },
     mail: {
       from: env.MAIL_FROM,
+      ethereal: env.SMTP_ETHEREAL && env.NODE_ENV !== "production",
       ...(env.SMTP_HOST
         ? {
             smtp: {

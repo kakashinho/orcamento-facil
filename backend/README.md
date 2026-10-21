@@ -31,6 +31,10 @@ docker compose up --build     # http://localhost/docs
 ```
 
 Sem `SMTP_HOST`, os e-mails de recuperação de senha aparecem no log do servidor em desenvolvimento.
+Para enviá-los de verdade (R04), preencha `SMTP_*` e `MAIL_FROM` no `.env` (o `.env.example` explica o
+caso do Gmail) e confira com `npm run mail:test -- destino@exemplo.com`; o compose também lê o `.env`.
+O link do e-mail usa `PUBLIC_BASE_URL` (`http://localhost` no compose), que só abre no próprio PC. Para
+abrir no celular, defina no `.env` `PASSWORD_RESET_URL=http://<IP do PC na rede>/reset-password`.
 O primeiro usuário cujo e-mail esteja em `ADMIN_EMAILS` recebe o perfil de administrador
 (no compose: `admin@orcamentofacil.local`).
 
@@ -43,6 +47,7 @@ O primeiro usuário cujo e-mail esteja em `ADMIN_EMAILS` recebe o perfil de admi
 |---|---|
 | `npm run dev` | API com recarga automática (tsx) |
 | `npm run routes` | Lista todas as rotas (método, caminho, se exige login, descrição) |
+| `npm run mail:test -- <e-mail>` | Envia um e-mail de recuperação de teste pelo SMTP do `.env` (sem banco) |
 | `npm run build` / `npm start` | Compila para `dist/` e executa |
 | `npm run typecheck` | Verificação de tipos |
 | `npm run test:unit` | Testes unitários (sem banco) |

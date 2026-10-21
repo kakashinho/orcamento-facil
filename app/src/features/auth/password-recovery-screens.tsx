@@ -40,15 +40,9 @@ export function ForgotPasswordScreen() {
             Verifique seu e-mail
           </Text>
           <Text color="onSurfaceVariant" align="center">
-            Se houver uma conta com {sentTo}, enviamos um link para redefinir a senha. O link vale por 1 hora.
+            Se houver uma conta com {sentTo}, enviamos um link para redefinir a senha. Abra o e-mail e toque no link
+            para criar a nova senha. O link vale por 1 hora.
           </Text>
-          <Button
-            variant="tonal"
-            label="Tenho o código do link"
-            icon="password"
-            onPress={() => router.push("/reset-password")}
-            style={styles.gap}
-          />
         </View>
       ) : (
         <>
@@ -80,7 +74,7 @@ export function ForgotPasswordScreen() {
 
 /**
  * Nova senha com o token do link (R04). Abre pelo link `orcamentofacil://reset-password?token=…`
- * (configurável no backend em PASSWORD_RESET_URL) ou colando o código recebido.
+ * (configurável no backend em PASSWORD_RESET_URL), com o código já preenchido.
  */
 export function ResetPasswordScreen() {
   const router = useRouter();
@@ -187,5 +181,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  gap: { marginTop: 16 },
 });

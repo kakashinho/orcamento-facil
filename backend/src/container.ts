@@ -13,7 +13,7 @@ import { createAuthenticate, requireAdminHook } from "./infrastructure/http/auth
 import type { HttpGuards } from "./infrastructure/http/types.js";
 import { EventLogger } from "./infrastructure/logging/event-logger.js";
 import { createLogger, type Logger } from "./infrastructure/logging/logger.js";
-import { LogMailer, type Mailer, SmtpMailer } from "./infrastructure/mail/mailer.js";
+import { EtherealMailer, LogMailer, type Mailer, SmtpMailer } from "./infrastructure/mail/mailer.js";
 import { AuthController } from "./modules/auth/controllers/auth.controller.js";
 import { BiometricController } from "./modules/auth/controllers/biometric.controller.js";
 import { ResetPasswordController } from "./modules/auth/controllers/reset-password.controller.js";
@@ -94,7 +94,11 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   const eventLog = new EventLogger(repositories.appLogs, logger);
   const mailer =
     overrides.mailer ??
-    (config.mail.smtp ? new SmtpMailer(config.mail.smtp, config.mail.from) : new LogMailer(logger, config.env !== "production"));
+    (config.mail.smtp
+      ? new SmtpMailer(config.mail.smtp, config.mail.from)
+      : config.mail.ethereal
+        ? new EtherealMailer(logger, config.mail.from)
+        : new LogMailer(logger, config.env !== "production"));
   const accessTokens = new AccessTokenService(config.auth.jwtSecret, config.auth.accessTokenTtlSeconds, clock);
   const passwords = new PasswordHasher({
     costLog2: config.auth.scryptCostLog2,

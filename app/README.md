@@ -72,8 +72,8 @@ em `app.config.ts` e nos plugins.
 ## Recuperação de senha pelo app (R04)
 
 Por padrão o link do e-mail abre a página de redefinição servida pelo backend. Para abrir direto no app,
-configure no backend `PASSWORD_RESET_URL=orcamentofacil://reset-password`. A tela do app também aceita o
-código do link colado manualmente.
+configure no backend `PASSWORD_RESET_URL=orcamentofacil://reset-password`; a tela do app abre com o código
+do link já preenchido.
 
 ## Estrutura
 

@@ -34,6 +34,41 @@ export class SmtpMailer implements Mailer {
 }
 
 /**
+ * Provisório para desenvolvimento: usa uma conta de teste do Ethereal (criada na primeira vez,
+ * sem cadastro). O e-mail não chega a ninguém; o log traz um link para visualizá-lo.
+ */
+export class EtherealMailer implements Mailer {
+  private transport?: Promise<ReturnType<typeof nodemailer.createTransport>>;
+
+  constructor(
+    private readonly logger: Logger,
+    private readonly from: string,
+  ) {}
+
+  private getTransport() {
+    this.transport ??= nodemailer.createTestAccount().then((account) => {
+      this.logger.info({ user: account.user }, "Conta de teste Ethereal criada");
+      return nodemailer.createTransport({
+        host: account.smtp.host,
+        port: account.smtp.port,
+        secure: account.smtp.secure,
+        auth: { user: account.user, pass: account.pass },
+      });
+    });
+    return this.transport;
+  }
+
+  async send(message: MailMessage): Promise<void> {
+    const transport = await this.getTransport();
+    const info = await transport.sendMail({ from: this.from, ...message });
+    this.logger.info(
+      { to: message.to, previewUrl: nodemailer.getTestMessageUrl(info) },
+      "E-mail de teste enviado (Ethereal): abra previewUrl para ver",
+    );
+  }
+}
+
+/**
  * Sem SMTP configurado: registra o e-mail no log. Em desenvolvimento inclui o conteúdo
  * (para o link de recuperação ser utilizável); em produção, apenas o fato do envio.
  */
