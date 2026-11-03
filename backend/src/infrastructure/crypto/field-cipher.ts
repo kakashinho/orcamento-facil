@@ -79,6 +79,15 @@ export class FieldCipher {
     return Number(plain.readBigInt64BE());
   }
 
+  /** Texto livre (ex.: nota da transação — R57), cifrado em UTF-8. */
+  encryptText(text: string, aad: string): Buffer {
+    return this.encrypt(Buffer.from(text, "utf8"), aad);
+  }
+
+  decryptText(envelope: Buffer | Uint8Array, aad: string): string {
+    return this.decrypt(envelope, aad).toString("utf8");
+  }
+
   encryptJson(value: unknown, aad: string): Buffer {
     return this.encrypt(Buffer.from(JSON.stringify(value), "utf8"), aad);
   }
@@ -98,7 +107,9 @@ export const aad = {
   walletBalance: (walletId: string) => `wallet.balance:${walletId}`,
   walletInitialBalance: (walletId: string) => `wallet.initial_balance:${walletId}`,
   transactionAmount: (transactionId: string) => `transaction.amount:${transactionId}`,
+  transactionNotes: (transactionId: string) => `transaction.notes:${transactionId}`,
   transferSourceAmount: (transferId: string) => `transfer.source_amount:${transferId}`,
   transferTargetAmount: (transferId: string) => `transfer.target_amount:${transferId}`,
   historySnapshot: (historyId: string) => `history.snapshot:${historyId}`,
+  budgetAmount: (budgetId: string) => `budget.amount:${budgetId}`,
 };

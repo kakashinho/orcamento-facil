@@ -42,6 +42,11 @@ export const suggestCategoryRequestSchema = z.strictObject({
 });
 export type SuggestCategoryRequestDto = z.infer<typeof suggestCategoryRequestSchema>;
 
+export const categoryVisibilityRequestSchema = z.strictObject({
+  hiddenInReports: z.boolean().meta({ description: "true = some dos gráficos e listas por categoria (R46)" }),
+});
+export type CategoryVisibilityRequestDto = z.infer<typeof categoryVisibilityRequestSchema>;
+
 // ---------- Response DTOs ----------
 
 export const categoryResponseSchema = z
@@ -51,6 +56,9 @@ export const categoryResponseSchema = z
     type: categoryType.nullable(),
     predefined: z.boolean().meta({ description: "true = categoria do sistema (R07), não pode ser alterada" }),
     systemKey: z.string().nullable(),
+    hiddenInReports: z
+      .boolean()
+      .meta({ description: "true = o usuário ocultou a categoria dos relatórios por categoria (R46)" }),
   })
   .meta({ id: "Category" });
 export type CategoryResponseDto = z.infer<typeof categoryResponseSchema>;
@@ -105,6 +113,16 @@ export const categoryRouteSchemas = {
     security: secured,
     params: idParams,
     body: updateCategoryRequestSchema,
+    response: { 200: categoryResponseSchema },
+  },
+  setVisibility: {
+    tags: TAGS,
+    summary: "Ocultar ou reexibir a categoria nos relatórios (R46)",
+    description:
+      "Vale para predefinidas e personalizadas, só para o usuário. A categoria sai dos gráficos e listas por categoria; saldos, totais do mês, orçamentos e metas continuam completos.",
+    security: secured,
+    params: idParams,
+    body: categoryVisibilityRequestSchema,
     response: { 200: categoryResponseSchema },
   },
   remove: {

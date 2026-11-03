@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction, TransactionRunner } from "../../../infrastructure/database/client.js";
+import type { DomainEvents, FinanceChangeCause } from "../../../infrastructure/events/domain-events.js";
 import { AppError, errors } from "../../../shared/errors/app-error.js";
 import { todayInTimeZone } from "../../../shared/utils/dates.js";
 import { fromCents, toCents } from "../../../shared/utils/money.js";
@@ -49,6 +50,8 @@ export interface TransactionServiceDeps {
   exchangeRates: ExchangeRateService;
   runner: TransactionRunner;
   clock: Clock;
+  /** Opcional: avisa alertas e metas depois de cada mudança (ADR-S2-003). */
+  events?: DomainEvents;
 }
 
 type StateInput = UpdateTransactionRequestDto;
@@ -61,6 +64,7 @@ export function toTransactionResponseDto(details: TransactionDetails): Transacti
     currency: details.currency,
     date: details.date,
     description: details.description,
+    notes: details.notes,
     wallet: details.wallet,
     category: details.category,
     tags: details.tags,
@@ -192,6 +196,11 @@ export class TransactionService {
     };
   }
 
+  /** Contrato público para o módulo reports: várias transações, na ordem pedida (ex.: maiores despesas — R36). */
+  async getMany(userId: string, transactionIds: string[]): Promise<TransactionResponseDto[]> {
+    return (await this.deps.transactions.findDetailsByIds(userId, transactionIds)).map(toTransactionResponseDto);
+  }
+
   /** Contrato público para o módulo reports. */
   listMovements(userId: string, range: MovementRange): Promise<TransactionMovement[]> {
     return this.deps.transactions.listMovements(userId, range);
@@ -206,34 +215,41 @@ export class TransactionService {
       await this.deps.history.record(tx, userId, "transaction.create", "transaction", transactionId, { transactionId });
       return transactionId;
     });
-    return this.get(userId, id);
+    const created = await this.get(userId, id);
+    this.changed(userId, "transaction.created", [created.wallet.id], id);
+    return created;
   }
 
   async update(userId: string, transactionId: string, input: UpdateTransactionRequestDto): Promise<TransactionResponseDto> {
-    await this.deps.runner.run(async (tx) => {
+    const walletIds = await this.deps.runner.run(async (tx) => {
       const current = await this.deps.transactions.findForUpdate(userId, transactionId, false, tx);
       if (!current) throw errors.notFound("Transação");
       const before = stateOf(current);
       const after = await this.resolveState(tx, userId, input, before);
-      if (sameState(before, after)) return;
+      if (sameState(before, after)) return null;
       await this.writeState(tx, userId, transactionId, before, after);
       await this.deps.history.record(tx, userId, "transaction.update", "transaction", transactionId, {
         transactionId,
         before,
       });
+      return [before.walletId, after.walletId];
     });
-    return this.get(userId, transactionId);
+    const updated = await this.get(userId, transactionId);
+    if (walletIds) this.changed(userId, "transaction.updated", walletIds, transactionId);
+    return updated;
   }
 
   /** Exclusão lógica: sai das listas e do saldo, mas pode ser restaurada pelo "desfazer". */
   async delete(userId: string, transactionId: string): Promise<void> {
-    await this.deps.runner.run(async (tx) => {
+    const walletId = await this.deps.runner.run(async (tx) => {
       const current = await this.deps.transactions.findForUpdate(userId, transactionId, false, tx);
       if (!current) throw errors.notFound("Transação");
       await this.deps.transactions.softDelete(transactionId, this.deps.clock.now(), tx);
       await this.deps.wallets.applyBalanceDeltas(tx, userId, addDelta(new Map(), current.walletId, -balanceEffect(current)));
       await this.deps.history.record(tx, userId, "transaction.delete", "transaction", transactionId, { transactionId });
+      return current.walletId;
     });
+    this.changed(userId, "transaction.deleted", [walletId], transactionId);
   }
 
   /** R48: copia a transação; por padrão com a data de hoje, aceitando ajustes pontuais. */
@@ -259,7 +275,9 @@ export class TransactionService {
       await this.deps.history.record(tx, userId, "transaction.create", "transaction", newId, { transactionId: newId });
       return newId;
     });
-    return this.get(userId, id);
+    const created = await this.get(userId, id);
+    this.changed(userId, "transaction.created", [created.wallet.id], id);
+    return created;
   }
 
   async setArchived(userId: string, transactionId: string, archived: boolean): Promise<TransactionResponseDto> {
@@ -325,6 +343,8 @@ export class TransactionService {
     }
     const target: TransactionState = {
       ...before,
+      // Snapshot gravado antes das notas (R57) não traz o campo: mantém a nota atual.
+      notes: before.notes === undefined ? current.notes : before.notes,
       tagIds: await this.deps.tags.filterExisting(tx, userId, before.tagIds),
     };
     await this.writeState(tx, userId, transactionId, stateOf(current), target);
@@ -335,6 +355,18 @@ export class TransactionService {
   }
 
   // ================================================================ apoio
+
+  /** Avisa os outros módulos (alertas, metas) depois do commit; nunca falha a operação. */
+  private changed(userId: string, cause: FinanceChangeCause, walletIds: string[], transactionId?: string): void {
+    this.deps.events?.publish({
+      type: "finance.changed",
+      userId,
+      cause,
+      walletIds: [...new Set(walletIds)],
+      origin: "user",
+      ...(transactionId ? { transactionId } : {}),
+    });
+  }
 
   private async today(userId: string): Promise<string> {
     const { timezone } = await this.deps.users.getPreferences(userId);
@@ -389,6 +421,7 @@ export class TransactionService {
       amountCents: input.amount !== undefined ? toCents(input.amount) : (base?.amountCents ?? 0),
       date: input.date ?? base?.date ?? (await this.today(userId)),
       description,
+      notes: input.notes !== undefined ? normalizeNotes(input.notes) : (base?.notes ?? null),
       categoryId,
       archived: input.archived ?? base?.archived ?? false,
       tagIds,
@@ -426,8 +459,15 @@ function stateOf(record: TransactionRecord): TransactionState {
     amountCents: record.amountCents,
     date: record.date,
     description: record.description,
+    notes: record.notes,
     categoryId: record.categoryId,
     archived: record.archived,
     tagIds: record.tagIds,
   };
+}
+
+/** Nota vazia (ou só espaços) vale como "sem nota". */
+function normalizeNotes(notes: string | null): string | null {
+  const trimmed = notes?.trim() ?? "";
+  return trimmed === "" ? null : trimmed;
 }

@@ -14,5 +14,7 @@ export function reportRoutes(controller: ReportController, guards: HttpGuards): 
     app.get("/cash-flow", { schema: schemas.cashFlow }, controller.cashFlow);
     app.get("/by-category", { schema: schemas.byCategory }, controller.byCategory);
     app.get("/monthly", { schema: schemas.monthly }, controller.monthly);
+    app.get("/balance-evolution", { schema: schemas.balanceEvolution }, controller.balanceEvolution);
+    app.get("/month-indicators", { schema: schemas.monthIndicators }, controller.monthIndicators);
   };
 }

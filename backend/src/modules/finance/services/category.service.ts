@@ -17,13 +17,14 @@ import { suggestCategories } from "./category-suggester.js";
 
 const HISTORY_SAMPLE_SIZE = 500;
 
-export function toCategoryResponseDto(category: Category): CategoryResponseDto {
+export function toCategoryResponseDto(category: Category, hiddenInReports = false): CategoryResponseDto {
   return {
     id: category.id,
     name: category.name,
     type: category.type,
     predefined: category.userId === null,
     systemKey: category.systemKey,
+    hiddenInReports,
   };
 }
 
@@ -38,9 +39,10 @@ export class CategoryService {
   /** Com `type`, só as categorias que aceitam esse tipo de transação (para o seletor do formulário). */
   async list(userId: string, type?: CategoryType): Promise<CategoryListResponseDto> {
     const rows = await this.categories.listVisible(userId);
+    const hidden = new Set(await this.categories.listHiddenIds(userId));
     const data = rows
       .filter((category) => type === undefined || acceptsType(category, type))
-      .map(toCategoryResponseDto)
+      .map((category) => toCategoryResponseDto(category, hidden.has(category.id)))
       .sort((a, b) => Number(b.predefined) - Number(a.predefined) || a.name.localeCompare(b.name, "pt-BR"));
     return { data };
   }
@@ -102,10 +104,11 @@ export class CategoryService {
       }
       changes.type = input.type;
     }
-    if (Object.keys(changes).length === 0) return toCategoryResponseDto(category);
+    const hidden = (await this.categories.listHiddenIds(userId)).includes(categoryId);
+    if (Object.keys(changes).length === 0) return toCategoryResponseDto(category, hidden);
 
     try {
-      return toCategoryResponseDto(await this.categories.update(categoryId, changes, this.clock.now()));
+      return toCategoryResponseDto(await this.categories.update(categoryId, changes, this.clock.now()), hidden);
     } catch (error) {
       if (error instanceof DuplicateEntryError) this.nameTaken();
       throw error;
@@ -115,6 +118,22 @@ export class CategoryService {
   async delete(userId: string, categoryId: string): Promise<void> {
     await this.findOwnedCustom(userId, categoryId);
     await this.categories.softDelete(categoryId, this.clock.now());
+  }
+
+  /**
+   * R46: oculta ou reexibe a categoria (predefinida ou do usuário) nos gráficos e listas por
+   * categoria dos relatórios — só para este usuário. Saldos e totais não mudam.
+   */
+  async setVisibility(userId: string, categoryId: string, hiddenInReports: boolean): Promise<CategoryResponseDto> {
+    const category = await this.categories.findVisible(userId, categoryId);
+    if (!category) throw errors.notFound("Categoria");
+    await this.categories.setHidden(userId, categoryId, hiddenInReports, this.clock.now());
+    return toCategoryResponseDto(category, hiddenInReports);
+  }
+
+  /** Contrato público para o módulo reports: categorias ocultas dos relatórios (R46). */
+  async hiddenIds(userId: string): Promise<Set<string>> {
+    return new Set(await this.categories.listHiddenIds(userId));
   }
 
   /** Categoria predefinida ou do usuário, ainda não excluída. */

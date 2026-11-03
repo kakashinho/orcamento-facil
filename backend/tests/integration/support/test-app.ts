@@ -8,6 +8,9 @@ import { FakeExchangeRateProvider, MutableClock, testConfig } from "../../helper
 
 export const PASSWORD = "Senha@Forte123";
 
+/** Sessões que sobrevivem a saltos do relógio de semanas ou meses (testes de orçamento, séries, lembretes). */
+export const LONG_SESSIONS = { ACCESS_TOKEN_TTL_MINUTES: "1000000", REFRESH_TOKEN_TTL_DAYS: "3650" };
+
 export interface TestContext {
   app: App;
   container: Container;

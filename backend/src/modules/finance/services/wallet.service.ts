@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction, TransactionRunner } from "../../../infrastructure/database/client.js";
+import type { DomainEvents } from "../../../infrastructure/events/domain-events.js";
 import { errors, fieldIssue } from "../../../shared/errors/app-error.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { fromCents, toCents } from "../../../shared/utils/money.js";
@@ -28,6 +29,8 @@ export interface WalletServiceDeps {
   exchangeRates: ExchangeRateService;
   runner: TransactionRunner;
   clock: Clock;
+  /** Opcional: avisa alertas (ex.: saldo mínimo) depois de mudanças de saldo (ADR-S2-003). */
+  events?: DomainEvents;
 }
 
 const DEFAULT_WALLET_NAME = "Carteira";
@@ -143,7 +146,11 @@ export class WalletService {
       if (error instanceof DuplicateEntryError) this.nameTaken();
       throw error;
     }
-    return this.get(userId, walletId);
+    const updated = await this.get(userId, walletId);
+    if (input.initialBalance !== undefined) {
+      this.deps.events?.publish({ type: "finance.changed", userId, cause: "wallet.updated", walletIds: [walletId], origin: "user" });
+    }
+    return updated;
   }
 
   /**

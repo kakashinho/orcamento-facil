@@ -35,4 +35,15 @@ export class ReportController {
   monthly = async (request: ZodRequest<Schemas["monthly"]>, reply: ZodReply<Schemas["monthly"]>) => {
     return reply.send(await this.reports.monthly(requireAuth(request).userId, request.query));
   };
+
+  balanceEvolution = async (
+    request: ZodRequest<Schemas["balanceEvolution"]>,
+    reply: ZodReply<Schemas["balanceEvolution"]>,
+  ) => {
+    return reply.send(await this.reports.balanceEvolution(requireAuth(request).userId, request.query));
+  };
+
+  monthIndicators = async (request: ZodRequest<Schemas["monthIndicators"]>, reply: ZodReply<Schemas["monthIndicators"]>) => {
+    return reply.send(await this.reports.monthIndicators(requireAuth(request).userId, request.query));
+  };
 }

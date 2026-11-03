@@ -37,6 +37,25 @@ export interface HousekeepingTask {
   run(now: Date): Promise<number>;
 }
 
+/**
+ * Tarefa agendada de negócio (ex.: gerar parcelas, enviar lembretes), fornecida pelo módulo dono
+ * do dado. Precisa ser idempotente: rodar duas vezes no mesmo minuto não pode duplicar nada.
+ */
+export interface JobTask {
+  name: string;
+  /** Devolve quantos itens processou (ex.: ocorrências criadas, avisos enviados). */
+  run(now: Date): Promise<{ processed: number }>;
+}
+
+export interface JobRunResult {
+  job: string;
+  processed: number;
+  skipped: boolean;
+  failed: boolean;
+  /** Motivo de pular: "maintenance" (modo de manutenção) ou "locked" (outra instância rodando). */
+  reason: "maintenance" | "locked" | null;
+}
+
 export interface AppLogFilters {
   event?: string | undefined;
   level?: string | undefined;

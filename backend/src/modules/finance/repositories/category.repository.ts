@@ -1,7 +1,7 @@
 import { and, eq, isNull, or } from "drizzle-orm";
 import type { DbTransaction } from "../../../infrastructure/database/client.js";
 import { Repository } from "../../../infrastructure/database/repository.js";
-import { categories } from "../../../infrastructure/database/schema.js";
+import { categories, categoryPreferences } from "../../../infrastructure/database/schema.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { isUniqueViolation } from "../../../shared/errors/pg-errors.js";
 import type { Category, CategoryType } from "../types/category.types.js";
@@ -71,6 +71,25 @@ export class CategoryRepository extends Repository {
       if (isUniqueViolation(error, UNIQUE_NAME)) throw new DuplicateEntryError("name");
       throw error;
     }
+  }
+
+  /** Categorias que o usuário ocultou dos relatórios (R46). */
+  async listHiddenIds(userId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ categoryId: categoryPreferences.categoryId })
+      .from(categoryPreferences)
+      .where(and(eq(categoryPreferences.userId, userId), eq(categoryPreferences.hiddenInReports, true)));
+    return rows.map((row) => row.categoryId);
+  }
+
+  async setHidden(userId: string, categoryId: string, hidden: boolean, now: Date): Promise<void> {
+    await this.db
+      .insert(categoryPreferences)
+      .values({ userId, categoryId, hiddenInReports: hidden, updatedAt: now })
+      .onConflictDoUpdate({
+        target: [categoryPreferences.userId, categoryPreferences.categoryId],
+        set: { hiddenInReports: hidden, updatedAt: now },
+      });
   }
 
   /** Exclusão lógica: transações antigas continuam exibindo a categoria. */

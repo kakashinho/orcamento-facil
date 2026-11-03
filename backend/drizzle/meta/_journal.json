@@ -22,6 +22,27 @@
       "when": 1791128616436,
       "tag": "0002_audit_theme_category_type_biometric",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793673511234,
+      "tag": "0003_transaction_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793673959356,
+      "tag": "0004_category_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793674193119,
+      "tag": "0005_budgets",
+      "breakpoints": true
     }
   ]
 }

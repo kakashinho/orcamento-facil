@@ -65,6 +65,23 @@ export const housekeepingResponseSchema = z.object({
 });
 export type HousekeepingResponseDto = z.infer<typeof housekeepingResponseSchema>;
 
+export const jobsRunResponseSchema = z.object({
+  ranAt: responseTimestamp,
+  results: z.array(
+    z.object({
+      job: z.string(),
+      processed: z.number().meta({ description: "Itens processados (ex.: ocorrências criadas, avisos enviados)" }),
+      skipped: z.boolean(),
+      failed: z.boolean(),
+      reason: z
+        .enum(["maintenance", "locked"])
+        .nullable()
+        .meta({ description: "maintenance = modo de manutenção ativo; locked = outra instância já está rodando" }),
+    }),
+  ),
+});
+export type JobsRunResponseDto = z.infer<typeof jobsRunResponseSchema>;
+
 // ---------- Schemas das rotas (validação + documentação) ----------
 
 export const adminRouteSchemas = {
@@ -97,5 +114,13 @@ export const adminRouteSchemas = {
       "Remove sessões expiradas, links de recuperação vencidos, histórico além da retenção e logs antigos. Também roda automaticamente (HOUSEKEEPING_INTERVAL_MINUTES).",
     security: secured,
     response: { 200: housekeepingResponseSchema },
+  },
+  runJobs: {
+    tags: TAGS,
+    summary: "Executar agora as tarefas agendadas",
+    description:
+      "Gera as ocorrências de recorrências e parcelas que venceram, envia lembretes e reenvia push pendentes. Também roda automaticamente (JOBS_INTERVAL_MINUTES). Não roda durante a manutenção.",
+    security: secured,
+    response: { 200: jobsRunResponseSchema },
   },
 } satisfies Record<string, FastifySchema>;

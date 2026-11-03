@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { DbTransaction, TransactionRunner } from "../../../infrastructure/database/client.js";
+import type { DomainEvents } from "../../../infrastructure/events/domain-events.js";
 import { AppError, errors } from "../../../shared/errors/app-error.js";
 import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { todayInTimeZone } from "../../../shared/utils/dates.js";
@@ -30,6 +31,8 @@ export interface TransferServiceDeps {
   users: UserService;
   runner: TransactionRunner;
   clock: Clock;
+  /** Opcional: avisa alertas (ex.: saldo mínimo) depois de cada mudança (ADR-S2-003). */
+  events?: DomainEvents;
 }
 
 export function toTransferResponseDto(details: TransferDetails): TransferResponseDto {
@@ -163,18 +166,26 @@ export class TransferService {
       }
       throw error;
     }
-    return { transfer: await this.get(userId, record.id), created: true };
+    const transfer = await this.get(userId, record.id);
+    this.changed(userId, [record.sourceWalletId, record.targetWalletId]);
+    return { transfer, created: true };
   }
 
   async delete(userId: string, transferId: string): Promise<void> {
     const { transfers, wallets, history, runner, clock } = this.deps;
-    await runner.run(async (tx) => {
+    const walletIds = await runner.run(async (tx) => {
       const transfer = await transfers.findForUpdate(userId, transferId, false, tx);
       if (!transfer) throw errors.notFound("Transferência");
       await transfers.softDelete(transferId, clock.now(), tx);
       await wallets.applyBalanceDeltas(tx, userId, balanceDeltas(transfer, -1));
       await history.record(tx, userId, "transfer.delete", "transfer", transferId, { transferId });
+      return [transfer.sourceWalletId, transfer.targetWalletId];
     });
+    this.changed(userId, walletIds);
+  }
+
+  private changed(userId: string, walletIds: string[]): void {
+    this.deps.events?.publish({ type: "finance.changed", userId, cause: "transfer.changed", walletIds, origin: "user" });
   }
 
   // ---------- reversões do "desfazer" (R49) ----------

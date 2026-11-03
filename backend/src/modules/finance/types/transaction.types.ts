@@ -7,6 +7,8 @@ export interface TransactionState {
   amountCents: number;
   date: string;
   description: string;
+  /** Nota livre (R57); null = sem nota. */
+  notes: string | null;
   categoryId: string | null;
   archived: boolean;
   tagIds: string[];
@@ -26,6 +28,7 @@ export function sameState(a: TransactionState, b: TransactionState): boolean {
     a.amountCents === b.amountCents &&
     a.date === b.date &&
     a.description === b.description &&
+    a.notes === b.notes &&
     a.categoryId === b.categoryId &&
     a.archived === b.archived &&
     sortedA === sortedB
@@ -49,6 +52,7 @@ export interface TransactionDetails {
   currency: string;
   date: string;
   description: string;
+  notes: string | null;
   wallet: { id: string; name: string; currency: string };
   category: { id: string; name: string; predefined: boolean } | null;
   tags: Array<{ id: string; name: string }>;

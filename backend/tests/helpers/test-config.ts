@@ -47,6 +47,11 @@ export class MutableClock implements Clock {
   advanceMinutes(minutes: number): void {
     this.advance(minutes * 60_000);
   }
+
+  /** Posiciona o relógio numa data fixa (use antes de criar usuários: tokens não aceitam voltar no tempo). */
+  setTo(date: Date): void {
+    this.current = date.getTime();
+  }
 }
 
 /** Provedor de câmbio determinístico (base USD), sem rede. */

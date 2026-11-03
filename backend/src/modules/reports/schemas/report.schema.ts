@@ -12,7 +12,7 @@ import {
   secured,
   uuid,
 } from "../../../infrastructure/http/common-schemas.js";
-import { monthsBetween } from "../../../shared/utils/dates.js";
+import { daysBetween, monthOf, monthsBetween } from "../../../shared/utils/dates.js";
 import { transactionResponseSchema, transactionSummaryResponseSchema } from "../../finance/schemas/transaction.schema.js";
 import { walletSummaryResponseSchema } from "../../finance/schemas/wallet.schema.js";
 
@@ -23,6 +23,12 @@ const kind = z
   .meta({ description: "income/expense = transação; transfer_in/transfer_out = transferência entre carteiras" });
 const categoryInfo = z.object({ id: responseId, name: z.string() }).nullable();
 const categoryType = z.enum(["income", "expense"]);
+const granularity = z
+  .enum(["day", "month"])
+  .meta({ description: "day = saldo de fim de cada dia (até 92 dias); month = saldo de fim de cada mês (até 36 meses)" });
+
+/** Evolução diária: até 92 pontos. */
+export const MAX_EVOLUTION_DAYS = 92;
 
 // ---------- Request DTOs ----------
 
@@ -40,6 +46,10 @@ export const byCategoryQuerySchema = z
     from: isoDate,
     to: isoDate,
     type: categoryType.default("expense"),
+    includeHidden: z
+      .enum(["true", "false"])
+      .default("false")
+      .meta({ description: "true = inclui as categorias que o usuário ocultou dos relatórios (R46)" }),
   })
   .superRefine(dateRangeRule("from", "to", MAX_PERIOD_DAYS));
 export type ByCategoryQueryDto = z.infer<typeof byCategoryQuerySchema>;
@@ -54,6 +64,40 @@ export const monthlyQuerySchema = z
     }
   });
 export type MonthlyQueryDto = z.infer<typeof monthlyQuerySchema>;
+
+export const balanceEvolutionQuerySchema = z
+  .strictObject({
+    from: isoDate.meta({ description: "Data inicial (inclusive)" }),
+    to: isoDate.meta({ description: "Data final (inclusive)" }),
+    walletId: uuid().optional().meta({ description: "Sem carteira: saldo de todas, convertido para a moeda principal" }),
+    granularity: granularity.default("day"),
+  })
+  .superRefine((value, ctx) => {
+    if (value.from > value.to) {
+      ctx.addIssue({ code: "custom", path: ["to"], message: "A data final deve ser igual ou posterior à inicial." });
+    } else if (value.granularity === "day" && daysBetween(value.from, value.to) + 1 > MAX_EVOLUTION_DAYS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["to"],
+        message: `Com granularidade diária, o período máximo é de ${MAX_EVOLUTION_DAYS} dias.`,
+      });
+    } else if (
+      value.granularity === "month" &&
+      monthsBetween(monthOf(value.from), monthOf(value.to)).length > MAX_PERIOD_MONTHS
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["to"],
+        message: `Com granularidade mensal, o período máximo é de ${MAX_PERIOD_MONTHS} meses.`,
+      });
+    }
+  });
+export type BalanceEvolutionQueryDto = z.infer<typeof balanceEvolutionQuerySchema>;
+
+export const monthIndicatorsQuerySchema = z.strictObject({
+  month: isoMonth.optional().meta({ description: "Mês dos indicadores. Padrão: mês atual no fuso do usuário" }),
+});
+export type MonthIndicatorsQueryDto = z.infer<typeof monthIndicatorsQuerySchema>;
 
 export const overviewQuerySchema = z.strictObject({
   month: isoMonth.optional().meta({ description: "Mês do resumo. Padrão: mês atual no fuso do usuário" }),
@@ -135,8 +179,14 @@ export const byCategoryResponseSchema = z.object({
   to: responseDate,
   type: categoryType,
   primaryCurrency: z.string(),
-  convertedTotal: z.number().nullable(),
+  convertedTotal: z.number().nullable().meta({ description: "Total das categorias exibidas" }),
   categories: z.array(categoryTotalsSchema),
+  hidden: z
+    .object({
+      count: z.number().meta({ description: "Categorias ocultas com movimento no período" }),
+      convertedTotal: z.number().nullable().meta({ description: "Total delas na moeda principal" }),
+    })
+    .meta({ description: "O que ficou de fora por estar oculto (R46)" }),
 });
 export type ByCategoryResponseDto = z.infer<typeof byCategoryResponseSchema>;
 
@@ -164,6 +214,58 @@ export const overviewResponseSchema = z
   })
   .meta({ id: "Overview" });
 export type OverviewResponseDto = z.infer<typeof overviewResponseSchema>;
+
+export const balanceEvolutionResponseSchema = z
+  .object({
+    from: responseDate,
+    to: responseDate,
+    granularity,
+    currency: z.string().meta({ description: "Moeda dos saldos: a da carteira ou a principal (consolidado)" }),
+    walletId: responseId.nullable(),
+    points: z.array(
+      z.object({
+        date: responseDate.meta({ description: "Dia (ou último dia do mês) a que o saldo se refere" }),
+        balance: z.number().nullable().meta({ description: "Saldo de fim do dia; null se faltar câmbio" }),
+      }),
+    ),
+    ratesStale: z.boolean().meta({ description: "true = alguma conversão usou cotação vencida (cache)" }),
+  })
+  .meta({ id: "BalanceEvolution" });
+export type BalanceEvolutionResponseDto = z.infer<typeof balanceEvolutionResponseSchema>;
+
+export const monthIndicatorsResponseSchema = z
+  .object({
+    month: z.string(),
+    currency: z.string().meta({ description: "Moeda principal do usuário" }),
+    days: z.number().meta({ description: "Dias considerados no saldo médio (mês atual: até hoje)" }),
+    averageDailyBalance: z
+      .number()
+      .nullable()
+      .meta({ description: "R35: média dos saldos de fim de dia, contando dias sem movimento; null se faltar câmbio" }),
+    ratesStale: z.boolean(),
+    savings: z
+      .object({
+        saved: z.number().nullable().meta({ description: "R75: receitas − despesas do mês" }),
+        previousAverage: z
+          .number()
+          .nullable()
+          .meta({ description: "Média do saldo dos meses anteriores com movimento; null sem meses para comparar" }),
+        previousMonths: z.array(z.string()).meta({ description: "Até 3 meses anteriores usados na média" }),
+        difference: z.number().nullable(),
+        differencePercent: z.number().nullable(),
+      })
+      .meta({ description: "Valor economizado no mês comparado à média dos meses anteriores (R75)" }),
+    topExpenses: z
+      .array(
+        z.object({
+          transaction: transactionResponseSchema,
+          convertedAmount: z.number().nullable().meta({ description: "Valor na moeda principal; null se faltar câmbio" }),
+        }),
+      )
+      .meta({ description: "R36: as 10 maiores despesas do mês, pelo valor na moeda principal (inclui arquivadas)" }),
+  })
+  .meta({ id: "MonthIndicators" });
+export type MonthIndicatorsResponseDto = z.infer<typeof monthIndicatorsResponseSchema>;
 
 // ---------- Schemas das rotas (validação + documentação) ----------
 
@@ -216,5 +318,22 @@ export const reportRouteSchemas = {
     security: secured,
     querystring: monthlyQuerySchema,
     response: { 200: monthlyResponseSchema },
+  },
+  balanceEvolution: {
+    tags: TAGS,
+    summary: "Evolução do saldo ao longo do tempo (R14)",
+    description:
+      "Saldo de fim de dia (até 92 dias) ou de fim de mês (até 36 meses). Sem `walletId`, soma todas as carteiras convertidas para a moeda principal; dia sem movimento repete o saldo anterior.",
+    security: secured,
+    querystring: balanceEvolutionQuerySchema,
+    response: { 200: balanceEvolutionResponseSchema },
+  },
+  monthIndicators: {
+    tags: TAGS,
+    summary: "Indicadores do mês: saldo médio diário (R35), valor economizado (R75) e maiores despesas (R36)",
+    description: "Tudo em uma requisição, na moeda principal. Mês futuro: 422 MONTH_IN_FUTURE.",
+    security: secured,
+    querystring: monthIndicatorsQuerySchema,
+    response: { 200: monthIndicatorsResponseSchema },
   },
 } satisfies Record<string, FastifySchema>;

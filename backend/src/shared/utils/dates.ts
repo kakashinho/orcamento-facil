@@ -71,6 +71,25 @@ export function monthsBetween(fromMonth: string, toMonth: string): string[] {
   return months;
 }
 
+/** Mês "YYYY-MM" deslocado de `delta` meses (negativo volta no tempo). */
+export function addMonths(month: string, delta: number): string {
+  const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+  const index = year * 12 + (monthNumber - 1) + delta;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+}
+
+/** Todas as datas "YYYY-MM-DD" de `from` a `to`, inclusive. */
+export function datesBetween(from: string, to: string): string[] {
+  const dates: string[] = [];
+  for (let date = from; date <= to; date = addDays(date, 1)) dates.push(date);
+  return dates;
+}
+
+/** Dias corridos entre duas datas (0 = mesma data). */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+}
+
 export function formatDateBr(isoDate: string): string {
   const [year, month, day] = isoDate.split("-");
   return `${day}/${month}/${year}`;

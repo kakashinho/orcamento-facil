@@ -25,6 +25,11 @@ export class CategoryController {
     return reply.send(await this.categories.update(requireAuth(request).userId, request.params.id, request.body));
   };
 
+  setVisibility = async (request: ZodRequest<Schemas["setVisibility"]>, reply: ZodReply<Schemas["setVisibility"]>) => {
+    const { userId } = requireAuth(request);
+    return reply.send(await this.categories.setVisibility(userId, request.params.id, request.body.hiddenInReports));
+  };
+
   remove = async (request: ZodRequest<Schemas["remove"]>, reply: ZodReply<Schemas["remove"]>) => {
     await this.categories.delete(requireAuth(request).userId, request.params.id);
     return reply.status(204).send();

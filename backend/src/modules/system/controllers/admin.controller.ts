@@ -3,6 +3,7 @@ import type { ZodReply, ZodRequest } from "../../../infrastructure/http/types.js
 import type { adminRouteSchemas } from "../schemas/admin.schema.js";
 import type { AppLogService } from "../services/app-log.service.js";
 import type { HousekeepingService } from "../services/housekeeping.service.js";
+import type { JobScheduler } from "../services/job-scheduler.service.js";
 import type { MaintenanceService } from "../services/maintenance.service.js";
 
 type Schemas = typeof adminRouteSchemas;
@@ -13,6 +14,7 @@ export class AdminController {
     private readonly maintenance: MaintenanceService,
     private readonly logs: AppLogService,
     private readonly housekeepingService: HousekeepingService,
+    private readonly jobs: JobScheduler,
   ) {}
 
   getMaintenance = async (_request: ZodRequest<Schemas["getMaintenance"]>, reply: ZodReply<Schemas["getMaintenance"]>) => {
@@ -32,5 +34,9 @@ export class AdminController {
 
   housekeeping = async (_request: ZodRequest<Schemas["housekeeping"]>, reply: ZodReply<Schemas["housekeeping"]>) => {
     return reply.send(await this.housekeepingService.run());
+  };
+
+  runJobs = async (_request: ZodRequest<Schemas["runJobs"]>, reply: ZodReply<Schemas["runJobs"]>) => {
+    return reply.send(await this.jobs.runOnce());
   };
 }

@@ -69,6 +69,9 @@ const envSchema = z.object({
   HOUSEKEEPING_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
   HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+
+  // Tarefas agendadas de negócio: ocorrências de séries, lembretes, reenvio de push (0 desliga).
+  JOBS_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
 });
 
 export interface AppConfig {
@@ -109,6 +112,10 @@ export interface AppConfig {
     intervalMinutes: number;
     historyRetentionDays: number;
     logRetentionDays: number;
+  };
+  jobs: {
+    /** 0 desliga a execução automática (POST /api/admin/jobs/run continua disponível). */
+    intervalMinutes: number;
   };
 }
 
@@ -196,5 +203,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       historyRetentionDays: Math.max(env.HISTORY_RETENTION_DAYS, Math.ceil(env.UNDO_WINDOW_HOURS / 24)),
       logRetentionDays: env.LOG_RETENTION_DAYS,
     },
+    jobs: { intervalMinutes: env.JOBS_INTERVAL_MINUTES },
   };
 }

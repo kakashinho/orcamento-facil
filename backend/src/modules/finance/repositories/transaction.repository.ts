@@ -27,6 +27,7 @@ const detailColumns = {
   amount: transactions.amount,
   date: transactions.date,
   description: transactions.description,
+  notes: transactions.notes,
   archived: transactions.archived,
   createdAt: transactions.createdAt,
   updatedAt: transactions.updatedAt,
@@ -44,6 +45,7 @@ type DetailRow = {
   amount: Buffer;
   date: string;
   description: string;
+  notes: Buffer | null;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -71,6 +73,14 @@ export class TransactionRepository extends Repository {
     return this.cipher.decryptAmount(amount, aad.transactionAmount(transactionId));
   }
 
+  private encryptNotes(transactionId: string, notes: string | null): Buffer | null {
+    return notes === null ? null : this.cipher.encryptText(notes, aad.transactionNotes(transactionId));
+  }
+
+  private decryptNotes(transactionId: string, notes: Buffer | null): string | null {
+    return notes === null ? null : this.cipher.decryptText(notes, aad.transactionNotes(transactionId));
+  }
+
   // ---------------------------------------------------------------- escrita
 
   private async replaceTags(tx: DbTransaction, transactionId: string, tagIds: string[]): Promise<void> {
@@ -92,6 +102,7 @@ export class TransactionRepository extends Repository {
       amount: this.cipher.encryptAmount(record.amountCents, aad.transactionAmount(record.id)),
       date: record.date,
       description: record.description,
+      notes: this.encryptNotes(record.id, record.notes),
       categoryId: record.categoryId,
       archived: record.archived,
       createdAt: record.createdAt,
@@ -113,6 +124,7 @@ export class TransactionRepository extends Repository {
       amountCents: this.decryptAmount(row.id, row.amount),
       date: row.date,
       description: row.description,
+      notes: this.decryptNotes(row.id, row.notes),
       categoryId: row.categoryId,
       archived: row.archived,
       tagIds: tagRows.map((tag) => tag.tagId),
@@ -160,6 +172,7 @@ export class TransactionRepository extends Repository {
         amount: this.cipher.encryptAmount(state.amountCents, aad.transactionAmount(transactionId)),
         date: state.date,
         description: state.description,
+        notes: this.encryptNotes(transactionId, state.notes),
         categoryId: state.categoryId,
         archived: state.archived,
         updatedAt: now,
@@ -290,6 +303,7 @@ export class TransactionRepository extends Repository {
       currency: row.currency,
       date: row.date,
       description: row.description,
+      notes: this.decryptNotes(row.id, row.notes),
       wallet: { id: row.walletId, name: row.walletName, currency: row.currency },
       category:
         row.categoryId && row.categoryName
@@ -300,6 +314,17 @@ export class TransactionRepository extends Repository {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
+  }
+
+  /** Detalhes de várias transações ativas do usuário, na ordem dos ids pedidos. */
+  async findDetailsByIds(userId: string, transactionIds: string[]): Promise<TransactionDetails[]> {
+    if (transactionIds.length === 0) return [];
+    const rows = await this.selectDetails().where(
+      and(inArray(transactions.id, transactionIds), eq(transactions.userId, userId), isNull(transactions.deletedAt)),
+    );
+    const position = new Map(transactionIds.map((id, index) => [id, index]));
+    rows.sort((a, b) => position.get(a.id)! - position.get(b.id)!);
+    return this.hydrate(rows);
   }
 
   async findDetails(userId: string, transactionId: string): Promise<TransactionDetails | undefined> {

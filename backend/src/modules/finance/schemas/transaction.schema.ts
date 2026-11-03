@@ -22,6 +22,9 @@ const TAGS = ["Transações"];
 
 const transactionType = z.enum(["income", "expense"]).meta({ description: "income = receita; expense = despesa" });
 const description = requiredText(200, "Informe a descrição.").meta({ example: "Supermercado" });
+const notes = optionalText(1000)
+  .nullable()
+  .meta({ description: "Observações livres (R57), até 1000 caracteres; null ou vazio remove", example: "Dividido com a Ana" });
 const tagNames = z
   .array(tagName)
   .max(10, "Use no máximo 10 tags.")
@@ -44,6 +47,7 @@ export const createTransactionRequestSchema = z.strictObject({
     .optional()
     .meta({ description: "Categoria compatível com o tipo (veja GET /api/categories?type=)" }),
   tags: tagNames.optional(),
+  notes: notes.optional(),
 });
 export type CreateTransactionRequestDto = z.infer<typeof createTransactionRequestSchema>;
 
@@ -55,6 +59,7 @@ export const updateTransactionRequestSchema = z.strictObject({
   walletId: uuid().optional(),
   categoryId: uuid().nullable().optional().meta({ description: "null remove a categoria" }),
   tags: tagNames.optional().meta({ description: "Substitui o conjunto atual de tags" }),
+  notes: notes.optional(),
   archived: z.boolean().optional(),
 });
 export type UpdateTransactionRequestDto = z.infer<typeof updateTransactionRequestSchema>;
@@ -115,6 +120,7 @@ export const transactionResponseSchema = z
     currency: z.string(),
     date: responseDate,
     description: z.string(),
+    notes: z.string().nullable().meta({ description: "Observações (R57); null = sem nota" }),
     wallet: z.object({ id: responseId, name: z.string(), currency: z.string() }),
     category: z.object({ id: responseId, name: z.string(), predefined: z.boolean() }).nullable(),
     tags: z.array(z.object({ id: responseId, name: z.string() })),

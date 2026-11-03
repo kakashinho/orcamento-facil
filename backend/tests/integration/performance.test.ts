@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { transactions } from "../../src/infrastructure/database/schema.js";
 import { aad } from "../../src/infrastructure/crypto/field-cipher.js";
+import { addMonths, monthOf, todayInTimeZone } from "../../src/shared/utils/dates.js";
 import { createTestApp, PREDEFINED, registerUser, type TestContext, type TestUser } from "./support/test-app.js";
 
 /**
@@ -12,6 +13,7 @@ import { createTestApp, PREDEFINED, registerUser, type TestContext, type TestUse
 const TRANSACTION_COUNT = 3000;
 const SERVER_BUDGET_MS = 300;
 const RUNS = 5;
+const CURRENT_MONTH = monthOf(todayInTimeZone(new Date(), "America/Sao_Paulo"));
 
 describe("desempenho das consultas (R83)", () => {
   let ctx: TestContext;
@@ -37,6 +39,8 @@ describe("desempenho das consultas (R83)", () => {
         amount: cipher.encryptAmount(cents, aad.transactionAmount(id)),
         date,
         description: `${descriptions[index % descriptions.length]} ${index}`,
+        // Um terço com nota (R57): a lista decifra as notas da página.
+        notes: index % 3 === 0 ? cipher.encryptText(`Observação da compra ${index}`, aad.transactionNotes(id)) : null,
         categoryId: categoryIds[index % categoryIds.length]!,
         createdAt: new Date(start + index * 1000),
         updatedAt: new Date(start + index * 1000),
@@ -44,6 +48,10 @@ describe("desempenho das consultas (R83)", () => {
     });
     for (let offset = 0; offset < rows.length; offset += 500) {
       await db.insert(transactions).values(rows.slice(offset, offset + 500));
+    }
+    for (const categoryId of [PREDEFINED.food, PREDEFINED.transport, PREDEFINED.leisure, PREDEFINED.housing, PREDEFINED.health]) {
+      await user.api.post("/api/budgets", { categoryId, period: "monthly", amount: 800 });
+      await user.api.post("/api/budgets", { categoryId, period: "daily", amount: 40 });
     }
   }, 120_000);
 
@@ -79,6 +87,11 @@ describe("desempenho das consultas (R83)", () => {
     "/api/reports/by-category?from=2026-01-01&to=2026-06-30",
     "/api/reports/monthly?fromMonth=2025-07&toMonth=2026-06",
     "/api/reports/cash-flow?from=2026-01-01&to=2026-03-31",
+    "/api/reports/balance-evolution?from=2026-04-01&to=2026-07-01",
+    "/api/reports/balance-evolution?from=2023-10-01&to=2026-09-30&granularity=month",
+    "/api/reports/month-indicators?month=2026-05",
+    "/api/budgets/status",
+    `/api/budgets/history?fromMonth=${addMonths(CURRENT_MONTH, -11)}&toMonth=${CURRENT_MONTH}`,
   ])("%s responde dentro do orçamento", async (endpoint) => {
     expect(await measure(endpoint)).toBeLessThan(SERVER_BUDGET_MS);
   });

@@ -1,8 +1,16 @@
 import type { Clock } from "../../../infrastructure/clock.js";
 import { errors } from "../../../shared/errors/app-error.js";
-import { monthOf, monthRange, monthsBetween, todayInTimeZone } from "../../../shared/utils/dates.js";
+import {
+  addMonths,
+  datesBetween,
+  monthOf,
+  monthRange,
+  monthsBetween,
+  todayInTimeZone,
+} from "../../../shared/utils/dates.js";
 import { fromCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
+import type { CategoryService } from "../../finance/services/category.service.js";
 import type { ExchangeRateService } from "../../finance/services/exchange-rate.service.js";
 import type { TransactionService } from "../../finance/services/transaction.service.js";
 import type { TransferService } from "../../finance/services/transfer.service.js";
@@ -10,10 +18,14 @@ import type { WalletService } from "../../finance/services/wallet.service.js";
 import type { MovementRange } from "../../finance/types/transaction.types.js";
 import type { Wallet } from "../../finance/types/wallet.types.js";
 import type {
+  BalanceEvolutionQueryDto,
+  BalanceEvolutionResponseDto,
   ByCategoryQueryDto,
   ByCategoryResponseDto,
   CashFlowResponseDto,
   ConvertedTotalsDto,
+  MonthIndicatorsQueryDto,
+  MonthIndicatorsResponseDto,
   MonthlyQueryDto,
   MonthlyResponseDto,
   OverviewQueryDto,
@@ -30,11 +42,26 @@ export interface ReportServiceDeps {
   transfers: TransferService;
   users: UserService;
   exchangeRates: ExchangeRateService;
+  categories: CategoryService;
   clock: Clock;
 }
 
 const OVERVIEW_TOP_CATEGORIES = 5;
 const OVERVIEW_RECENT_TRANSACTIONS = 5;
+const TOP_EXPENSES = 10;
+/** Meses anteriores comparados no valor economizado (R75). */
+const SAVINGS_PREVIOUS_MONTHS = 3;
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/** Datas dos pontos da evolução: cada dia, ou o último dia de cada mês (limitado a `to`). */
+function evolutionDates(from: string, to: string, granularity: "day" | "month"): string[] {
+  if (granularity === "day") return datesBetween(from, to);
+  return monthsBetween(monthOf(from), monthOf(to)).map((month) => {
+    const end = monthRange(month).to;
+    return end > to ? to : end;
+  });
+}
 
 function byChronology(a: Movement, b: Movement): number {
   if (a.date !== b.date) return a.date < b.date ? -1 : 1;
@@ -60,7 +87,7 @@ export class ReportService {
     const [walletSummary, monthSummary, expenses, recent] = await Promise.all([
       wallets.summary(userId),
       transactions.summary(userId, { month, archived: "all" }),
-      this.byCategory(userId, { from: range.from, to: range.to, type: "expense" }),
+      this.byCategory(userId, { from: range.from, to: range.to, type: "expense", includeHidden: "false" }),
       transactions.list(userId, { sort: "date", order: "desc", limit: OVERVIEW_RECENT_TRANSACTIONS, archived: "false" }),
     ]);
     return {
@@ -274,6 +301,166 @@ export class ReportService {
     };
   }
 
+  /**
+   * Saldo de fim de dia de cada carteira em cada data pedida (crescente), em centavos: saldo
+   * inicial + movimentos (transações e transferências) até a data. Base de R14 e R35.
+   */
+  private async balanceSeries(userId: string, wallets: Wallet[], from: string, dates: string[]): Promise<Map<string, number[]>> {
+    const series = new Map(wallets.map((wallet) => [wallet.id, [] as number[]]));
+    const last = dates[dates.length - 1];
+    if (last === undefined) return series;
+    const walletIds = new Set(wallets.map((wallet) => wallet.id));
+    const walletFilter = wallets.length === 1 ? { walletId: wallets[0]!.id } : {};
+
+    const running = new Map(wallets.map((wallet) => [wallet.id, wallet.initialBalanceCents]));
+    const apply = (movement: Movement) => {
+      if (walletIds.has(movement.walletId)) running.set(movement.walletId, running.get(movement.walletId)! + movement.cents);
+    };
+    const before = [
+      ...(await this.transactionMovements(userId, { before: from, ...walletFilter })),
+      ...(await this.transferMovements(userId, { before: from }, walletIds)),
+    ];
+    before.forEach(apply);
+    const period = [
+      ...(await this.transactionMovements(userId, { from, to: last, ...walletFilter })),
+      ...(await this.transferMovements(userId, { from, to: last }, walletIds)),
+    ].sort(byChronology);
+
+    let next = 0;
+    for (const date of dates) {
+      while (next < period.length && period[next]!.date <= date) apply(period[next++]!);
+      for (const wallet of wallets) series.get(wallet.id)!.push(running.get(wallet.id)!);
+    }
+    return series;
+  }
+
+  /** Soma os saldos das carteiras no ponto `index`, convertidos para `target`; null se faltar câmbio. */
+  private convertPoint(wallets: Wallet[], series: Map<string, number[]>, index: number, target: string) {
+    const perCurrency = new Map<string, number>();
+    for (const wallet of wallets) {
+      perCurrency.set(wallet.currency, (perCurrency.get(wallet.currency) ?? 0) + series.get(wallet.id)![index]!);
+    }
+    return this.deps.exchangeRates.tryConvertMany(
+      [...perCurrency.entries()].map(([currency, cents]) => ({ cents, currency })),
+      target,
+    );
+  }
+
+  /** R14: saldo de fim de dia (ou de mês) no período, de uma carteira ou consolidado. */
+  async balanceEvolution(userId: string, query: BalanceEvolutionQueryDto): Promise<BalanceEvolutionResponseDto> {
+    const wallets = await this.walletsOf(userId, query.walletId);
+    const dates = evolutionDates(query.from, query.to, query.granularity);
+    const series = await this.balanceSeries(userId, wallets, query.from, dates);
+    const { primaryCurrency } = await this.deps.users.getPreferences(userId);
+
+    let ratesStale = false;
+    const points: BalanceEvolutionResponseDto["points"] = [];
+    for (const [index, date] of dates.entries()) {
+      if (query.walletId) {
+        points.push({ date, balance: fromCents(series.get(query.walletId)![index]!) });
+        continue;
+      }
+      const converted = await this.convertPoint(wallets, series, index, primaryCurrency);
+      ratesStale ||= converted?.stale ?? false;
+      points.push({ date, balance: converted ? fromCents(converted.total) : null });
+    }
+    return {
+      from: query.from,
+      to: query.to,
+      granularity: query.granularity,
+      currency: query.walletId ? wallets[0]!.currency : primaryCurrency,
+      walletId: query.walletId ?? null,
+      points,
+      ratesStale,
+    };
+  }
+
+  /** R35, R75 e R36 numa ida ao servidor, para a tela de análises. */
+  async monthIndicators(userId: string, query: MonthIndicatorsQueryDto): Promise<MonthIndicatorsResponseDto> {
+    const { users, clock, exchangeRates, transactions } = this.deps;
+    const { timezone, primaryCurrency } = await users.getPreferences(userId);
+    const today = todayInTimeZone(clock.now(), timezone);
+    const currentMonth = monthOf(today);
+    const month = query.month ?? currentMonth;
+    if (month > currentMonth) {
+      throw errors.unprocessable("MONTH_IN_FUTURE", "Escolha o mês atual ou um mês anterior.", "month");
+    }
+    const range = monthRange(month);
+    const wallets = await this.walletsOf(userId);
+
+    // R35: média dos saldos de fim de dia (dias sem movimento repetem o saldo anterior).
+    const dates = datesBetween(range.from, month === currentMonth ? today : range.to);
+    const series = await this.balanceSeries(userId, wallets, range.from, dates);
+    let total = 0;
+    let missingRate = false;
+    let ratesStale = false;
+    for (const index of dates.keys()) {
+      const converted = await this.convertPoint(wallets, series, index, primaryCurrency);
+      if (!converted) {
+        missingRate = true;
+        break;
+      }
+      total += converted.total;
+      ratesStale ||= converted.stale;
+    }
+    const averageDailyBalance = missingRate ? null : fromCents(Math.round(total / dates.length));
+
+    // R75: receitas − despesas do mês × média dos meses anteriores que tiveram movimento.
+    const monthly = await this.monthly(userId, { fromMonth: addMonths(month, -SAVINGS_PREVIOUS_MONTHS), toMonth: month });
+    const current = monthly.months[monthly.months.length - 1]!;
+    const previous = monthly.months
+      .slice(0, -1)
+      .filter((entry) => entry.totals.some((totals) => totals.income > 0 || totals.expense > 0))
+      .reverse();
+    const saved = current.converted?.net ?? null;
+    const previousAverage =
+      previous.length === 0 || previous.some((entry) => entry.converted === null)
+        ? null
+        : round2(previous.reduce((sum, entry) => sum + entry.converted!.net, 0) / previous.length);
+    const difference = saved !== null && previousAverage !== null ? round2(saved - previousAverage) : null;
+    const differencePercent =
+      difference !== null && previousAverage ? round2((difference / Math.abs(previousAverage)) * 100) : null;
+
+    // R36: as maiores despesas do mês pelo valor na moeda principal.
+    const currencyOf = new Map(wallets.map((wallet) => [wallet.id, wallet.currency]));
+    const expenses = await this.transactionMovements(userId, { from: range.from, to: range.to, type: "expense" });
+    const ranked: Array<{ movement: Movement; converted: number | null }> = [];
+    for (const movement of expenses) {
+      const converted = await exchangeRates.tryConvertMany(
+        [{ cents: Math.abs(movement.cents), currency: currencyOf.get(movement.walletId)! }],
+        primaryCurrency,
+      );
+      ranked.push({ movement, converted: converted?.total ?? null });
+    }
+    ranked.sort(
+      (a, b) =>
+        (b.converted ?? -1) - (a.converted ?? -1) ||
+        (a.movement.date === b.movement.date ? 0 : a.movement.date < b.movement.date ? 1 : -1) ||
+        (a.movement.referenceId < b.movement.referenceId ? -1 : 1),
+    );
+    const top = ranked.slice(0, TOP_EXPENSES);
+    const details = await transactions.getMany(userId, top.map((item) => item.movement.referenceId));
+
+    return {
+      month,
+      currency: primaryCurrency,
+      days: dates.length,
+      averageDailyBalance,
+      ratesStale,
+      savings: {
+        saved,
+        previousAverage,
+        previousMonths: previous.map((entry) => entry.month),
+        difference,
+        differencePercent,
+      },
+      topExpenses: details.map((transaction, index) => ({
+        transaction,
+        convertedAmount: top[index]!.converted === null ? null : fromCents(top[index]!.converted!),
+      })),
+    };
+  }
+
   /** Totais por categoria no período — base para gráfico de pizza. */
   async byCategory(userId: string, query: ByCategoryQueryDto): Promise<ByCategoryResponseDto> {
     const currencyOf = new Map((await this.walletsOf(userId)).map((wallet) => [wallet.id, wallet.currency]));
@@ -290,6 +477,10 @@ export class ReportService {
       groups.set(key, group);
     }
 
+    // R46: categorias ocultas saem do gráfico; o percentual é recalculado sobre as exibidas.
+    const hiddenIds = query.includeHidden === "true" ? new Set<string>() : await this.deps.categories.hiddenIds(userId);
+    const hidden: { count: number; total: number | null } = { count: 0, total: 0 };
+
     const rows: ByCategoryResponseDto["categories"] = [];
     let grandTotal: number | null = 0;
     for (const group of groups.values()) {
@@ -297,6 +488,11 @@ export class ReportService {
         [...group.perCurrency.entries()].map(([currency, cents]) => ({ cents, currency })),
         primaryCurrency,
       );
+      if (group.category && hiddenIds.has(group.category.id)) {
+        hidden.count += 1;
+        hidden.total = converted === null || hidden.total === null ? null : hidden.total + converted.total;
+        continue;
+      }
       if (converted === null) grandTotal = null;
       else if (grandTotal !== null) grandTotal += converted.total;
       rows.push({
@@ -319,6 +515,7 @@ export class ReportService {
       primaryCurrency,
       convertedTotal: grandTotal === null ? null : fromCents(grandTotal),
       categories: rows,
+      hidden: { count: hidden.count, convertedTotal: hidden.total === null ? null : fromCents(hidden.total) },
     };
   }
 

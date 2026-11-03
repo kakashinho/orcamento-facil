@@ -1,7 +1,13 @@
+import { readFileSync } from "node:fs";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runMigrations } from "../../src/infrastructure/database/migrate.js";
 import { TEST_DATABASE_URL } from "../helpers/test-config.js";
+
+/** Migrations oficiais registradas pelo drizzle-kit (cada `npm run db:generate` acrescenta uma). */
+const journal = JSON.parse(readFileSync(new URL("../../drizzle/meta/_journal.json", import.meta.url), "utf8")) as {
+  entries: Array<{ tag: string }>;
+};
 
 describe("migrations oficiais", () => {
   const client = new pg.Client({ connectionString: TEST_DATABASE_URL });
@@ -22,7 +28,9 @@ describe("migrations oficiais", () => {
       "action_history",
       "app_logs",
       "biometric_credentials",
+      "budgets",
       "categories",
+      "category_preferences",
       "password_reset_tokens",
       "sessions",
       "system_settings",
@@ -48,9 +56,19 @@ describe("migrations oficiais", () => {
       select table_name, column_name, data_type from information_schema.columns
       where table_schema = 'public'
         and column_name in ('amount', 'balance', 'initial_balance', 'source_amount', 'target_amount', 'snapshot')`);
-    // transactions.amount, wallets.balance/initial_balance, transfers.source/target_amount, action_history.snapshot
-    expect(money.rows.length).toBe(6);
+    // transactions.amount, wallets.balance/initial_balance, transfers.source/target_amount, action_history.snapshot,
+    // budgets.amount
+    expect(money.rows.length).toBe(7);
     for (const column of money.rows) expect(column.data_type).toBe("bytea");
+  });
+
+  it("guardam cifrados (BYTEA) os dados novos da Sprint 2 (R81)", async () => {
+    const encrypted = [["transactions", "notes"]];
+    const { rows } = await client.query<{ table_name: string; column_name: string; data_type: string }>(
+      "select table_name, column_name, data_type from information_schema.columns where table_schema = 'public'",
+    );
+    const typeOf = new Map(rows.map((row) => [`${row.table_name}.${row.column_name}`, row.data_type]));
+    for (const [table, column] of encrypted) expect(typeOf.get(`${table}.${column}`), `${table}.${column}`).toBe("bytea");
   });
 
   it("criam índices únicos sem diferenciar maiúsculas e o índice da listagem cronológica", async () => {
@@ -89,14 +107,20 @@ describe("migrations oficiais", () => {
         "insert into users (email, username, password_hash, theme) values ('tema@teste.com', 'tema_invalido', 'x', 'azul')",
       ),
     ).rejects.toMatchObject({ code: "23514" });
+    // Dono próprio: o teste não depende de outro arquivo ter criado usuários antes.
+    const suffix = Date.now().toString(36);
+    const owner = await client.query<{ id: string }>(
+      "insert into users (email, username, password_hash) values ($1, $2, 'x') returning id",
+      [`dono_${suffix}@teste.com`, `dono_${suffix}`],
+    );
     await expect(
-      client.query("insert into categories (user_id, name, type) select id, 'Tipo inválido', 'ambos' from users limit 1"),
+      client.query("insert into categories (user_id, name, type) values ($1, 'Tipo inválido', 'ambos')", [owner.rows[0]!.id]),
     ).rejects.toMatchObject({ code: "23514" });
   });
 
   it("são idempotentes: reaplicar não executa nada novamente", async () => {
     await runMigrations(TEST_DATABASE_URL);
     const { rows } = await client.query("select count(*)::int as total from drizzle.__drizzle_migrations");
-    expect(rows[0].total).toBe(3);
+    expect(rows[0].total).toBe(journal.entries.length);
   });
 });

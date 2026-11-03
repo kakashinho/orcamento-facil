@@ -1,4 +1,5 @@
 import type { TransactionRunner } from "../../../infrastructure/database/client.js";
+import type { DomainEvents } from "../../../infrastructure/events/domain-events.js";
 import type { EventLogger } from "../../../infrastructure/logging/event-logger.js";
 import { AppError, errors } from "../../../shared/errors/app-error.js";
 import type { UndoResponseDto } from "../schemas/history.schema.js";
@@ -27,6 +28,8 @@ export class UndoService {
     private readonly history: ActionHistoryService,
     private readonly handlers: UndoHandlers,
     private readonly eventLog: EventLogger,
+    /** Opcional: depois de desfazer, alertas e metas reavaliam o usuário (ADR-S2-003). */
+    private readonly events?: DomainEvents,
   ) {}
 
   async undoLast(userId: string, requestId?: string): Promise<UndoResponseDto> {
@@ -61,6 +64,7 @@ export class UndoService {
       throw errors.conflict(UNDO_NOT_POSSIBLE, outcome.message);
     }
     const { entry } = outcome;
+    this.events?.publish({ type: "finance.changed", userId, cause: "undo", walletIds: [], origin: "user" });
     return {
       undone: {
         id: entry.id,

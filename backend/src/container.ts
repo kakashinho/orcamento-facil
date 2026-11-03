@@ -5,6 +5,7 @@ import { PasswordHasher } from "./infrastructure/auth/password-hasher.js";
 import { type Clock, systemClock } from "./infrastructure/clock.js";
 import { FieldCipher } from "./infrastructure/crypto/field-cipher.js";
 import { createDatabase, createTransactionRunner, type Database } from "./infrastructure/database/client.js";
+import { DomainEvents } from "./infrastructure/events/domain-events.js";
 import {
   type ExchangeRateProvider,
   OpenExchangeRateApiProvider,
@@ -48,16 +49,22 @@ import { ActionHistoryService } from "./modules/history/services/action-history.
 import { UndoService } from "./modules/history/services/undo.service.js";
 import type { UndoHandlers } from "./modules/history/types/history.types.js";
 import { ReportController } from "./modules/reports/controllers/report.controller.js";
+import { BudgetController } from "./modules/planning/controllers/budget.controller.js";
+import { BudgetRepository } from "./modules/planning/repositories/budget.repository.js";
+import { BudgetService } from "./modules/planning/services/budget.service.js";
 import { ReportService } from "./modules/reports/services/report.service.js";
 import { AdminController } from "./modules/system/controllers/admin.controller.js";
 import { SystemController } from "./modules/system/controllers/system.controller.js";
 import { AppLogRepository } from "./modules/system/repositories/app-log.repository.js";
 import { HealthRepository } from "./modules/system/repositories/health.repository.js";
+import { JobLockRepository } from "./modules/system/repositories/job-lock.repository.js";
 import { SystemSettingsRepository } from "./modules/system/repositories/system-settings.repository.js";
 import { AppLogService } from "./modules/system/services/app-log.service.js";
 import { HealthService } from "./modules/system/services/health.service.js";
 import { HousekeepingService } from "./modules/system/services/housekeeping.service.js";
+import { JobScheduler } from "./modules/system/services/job-scheduler.service.js";
 import { MaintenanceService } from "./modules/system/services/maintenance.service.js";
+import type { JobTask } from "./modules/system/types/system.types.js";
 
 export interface ContainerOverrides {
   clock?: Clock;
@@ -88,10 +95,14 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     systemSettings: new SystemSettingsRepository(db),
     appLogs: new AppLogRepository(db),
     health: new HealthRepository(db),
+    jobLocks: new JobLockRepository(db),
+    budgets: new BudgetRepository(db, cipher),
   };
 
   // ---------- infraestrutura ----------
   const eventLog = new EventLogger(repositories.appLogs, logger);
+  // Eventos de domínio publicados depois do commit: alertas e metas reagem sem acoplar o finance (ADR-S2-003).
+  const events = new DomainEvents(eventLog);
   const mailer =
     overrides.mailer ??
     (config.mail.smtp
@@ -129,6 +140,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     exchangeRates,
     runner,
     clock,
+    events,
   });
   const auth = new AuthService({
     config: config.auth,
@@ -165,6 +177,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     exchangeRates,
     runner,
     clock,
+    events,
   });
   const transfers = new TransferService({
     transfers: repositories.transfers,
@@ -174,6 +187,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     users,
     runner,
     clock,
+    events,
   });
   // Cada ação desfazível é revertida pelo service dono do dado (R49).
   const undoHandlers: UndoHandlers = {
@@ -187,8 +201,20 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     "transfer.create": (tx, userId, p) => transfers.revertCreate(tx, userId, String(p.transferId)),
     "transfer.delete": (tx, userId, p) => transfers.revertDelete(tx, userId, String(p.transferId)),
   };
-  const undo = new UndoService(runner, history, undoHandlers, eventLog);
-  const reports = new ReportService({ wallets, transactions, transfers, users, exchangeRates, clock });
+  const undo = new UndoService(runner, history, undoHandlers, eventLog, events);
+  // Planejamento (R21, R74, R23): usa só os services públicos do finance e do auth.
+  const budgets = new BudgetService({
+    budgets: repositories.budgets,
+    categories,
+    transactions,
+    wallets,
+    users,
+    exchangeRates,
+    runner,
+    clock,
+    events,
+  });
+  const reports = new ReportService({ wallets, transactions, transfers, users, exchangeRates, categories, clock });
   const maintenance = new MaintenanceService(repositories.systemSettings, clock, eventLog, config.maintenanceForced);
   const appLogs = new AppLogService(repositories.appLogs, eventLog, config.housekeeping.logRetentionDays);
   const health = new HealthService(repositories.health, logger);
@@ -202,6 +228,9 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     eventLog,
   );
+  // Tarefas agendadas de negócio (ADR-S2-004): cada módulo fornece as suas; o system só agenda.
+  const jobTasks: JobTask[] = [];
+  const jobs = new JobScheduler(jobTasks, repositories.jobLocks, maintenance, clock, eventLog);
 
   // ---------- HTTP: guards e controllers ----------
   const guards: HttpGuards = {
@@ -225,8 +254,9 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     exchangeRate: new ExchangeRateController(exchangeRates),
     history: new HistoryController(history, undo),
     report: new ReportController(reports),
+    budget: new BudgetController(budgets),
     system: new SystemController(health, maintenance, clock),
-    admin: new AdminController(maintenance, appLogs, housekeeping),
+    admin: new AdminController(maintenance, appLogs, housekeeping, jobs),
   };
 
   return {
@@ -238,6 +268,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     cipher,
     mailer,
     eventLog,
+    events,
     services: {
       auth,
       biometrics,
@@ -251,12 +282,15 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       history,
       undo,
       reports,
+      budgets,
       maintenance,
       housekeeping,
+      jobs,
     },
     controllers,
     guards,
     async close() {
+      await events.idle();
       await eventLog.flush();
       await pool.end();
     },

@@ -76,6 +76,25 @@ export const categories = pgTable(
   ],
 );
 
+/**
+ * Preferências do usuário sobre categorias (R46). Linha à parte porque as predefinidas são globais:
+ * ocultar "Alimentação" vale só para quem ocultou. Linha ausente = visível.
+ */
+export const categoryPreferences = pgTable(
+  "category_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    hiddenInReports: boolean("hidden_in_reports").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.categoryId] })],
+);
+
 export const tags = pgTable(
   "tags",
   {
@@ -103,6 +122,8 @@ export const transactions = pgTable(
     amount: bytea("amount").notNull(),
     date: date("date", { mode: "string" }).notNull(),
     description: varchar("description", { length: 200 }).notNull(),
+    // Nota livre (R57), cifrada: texto livre pode conter dados sensíveis e não entra na busca (R10).
+    notes: bytea("notes"),
     categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
     archived: boolean("archived").notNull().default(false),
     // Exclusão lógica: preserva o registro para o "desfazer" (R49).
