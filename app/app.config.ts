@@ -10,6 +10,8 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim() || null;
 // Sem URL (desenvolvimento, IP do Metro) ou com http:// — libera HTTP sem TLS; com https://, não.
 const allowCleartext = !apiUrl || !apiUrl.startsWith("https://");
+// Push (R18): google-services.json do Firebase fica fora do git; o caminho vem do ambiente no build.
+const googleServicesFile = process.env.GOOGLE_SERVICES_JSON?.trim() || undefined;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -30,6 +32,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     softwareKeyboardLayoutMode: "resize",
     predictiveBackGestureEnabled: false,
     permissions: ["android.permission.RECORD_AUDIO", "android.permission.USE_BIOMETRIC"],
@@ -71,6 +74,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     "expo-sharing",
     "@react-native-community/datetimepicker",
+    ["expo-notifications", { color: "#1560D4", defaultChannel: "avisos" }],
+    [
+      "expo-camera",
+      {
+        cameraPermission: "O Orçamento Fácil usa a câmera para fotografar recibos e comprovantes.",
+        recordAudioAndroid: false,
+      },
+    ],
     ["expo-build-properties", { android: { usesCleartextTraffic: allowCleartext } }],
   ],
   experiments: {
