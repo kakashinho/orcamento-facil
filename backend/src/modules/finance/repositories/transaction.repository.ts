@@ -6,6 +6,7 @@ import { categories, tags, transactions, transactionTags, wallets } from "../../
 import { monthRange } from "../../../shared/utils/dates.js";
 import { escapeLike } from "../../../shared/utils/text.js";
 import type {
+  ContributionSource,
   DateCursor,
   MovementRange,
   SortOrder,
@@ -313,6 +314,33 @@ export class TransactionRepository extends Repository {
       archived: row.archived,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+    }));
+  }
+
+  /** Valor, tipo e moeda das transações do usuário, inclusive as excluídas logicamente (metas — R17). */
+  async findContributionSources(userId: string, transactionIds: string[]): Promise<ContributionSource[]> {
+    if (transactionIds.length === 0) return [];
+    const rows = await this.db
+      .select({
+        id: transactions.id,
+        type: transactions.type,
+        amount: transactions.amount,
+        currency: wallets.currency,
+        date: transactions.date,
+        description: transactions.description,
+        deletedAt: transactions.deletedAt,
+      })
+      .from(transactions)
+      .innerJoin(wallets, eq(wallets.id, transactions.walletId))
+      .where(and(inArray(transactions.id, transactionIds), eq(transactions.userId, userId)));
+    return rows.map((row) => ({
+      id: row.id,
+      type: row.type as TransactionType,
+      amountCents: this.decryptAmount(row.id, row.amount),
+      currency: row.currency,
+      date: row.date,
+      description: row.description,
+      deleted: row.deletedAt !== null,
     }));
   }
 

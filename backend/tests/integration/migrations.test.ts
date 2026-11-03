@@ -31,11 +31,13 @@ describe("migrations oficiais", () => {
       "budgets",
       "categories",
       "category_preferences",
+      "goal_contributions",
       "notification_settings",
       "notifications",
       "password_reset_tokens",
       "push_devices",
       "reduction_goals",
+      "savings_goals",
       "sessions",
       "system_settings",
       "tags",
@@ -61,8 +63,8 @@ describe("migrations oficiais", () => {
       where table_schema = 'public'
         and column_name in ('amount', 'balance', 'initial_balance', 'source_amount', 'target_amount', 'snapshot')`);
     // transactions.amount, wallets.balance/initial_balance, transfers.source/target_amount, action_history.snapshot,
-    // budgets.amount
-    expect(money.rows.length).toBe(7);
+    // budgets.amount, goal_contributions.amount
+    expect(money.rows.length).toBe(8);
     for (const column of money.rows) expect(column.data_type).toBe("bytea");
   });
 
@@ -70,6 +72,7 @@ describe("migrations oficiais", () => {
     const encrypted = [
       ["transactions", "notes"],
       ["reduction_goals", "baseline_amount"],
+      ["savings_goals", "target_amount"],
     ];
     const { rows } = await client.query<{ table_name: string; column_name: string; data_type: string }>(
       "select table_name, column_name, data_type from information_schema.columns where table_schema = 'public'",

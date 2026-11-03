@@ -113,4 +113,6 @@ export const aad = {
   historySnapshot: (historyId: string) => `history.snapshot:${historyId}`,
   budgetAmount: (budgetId: string) => `budget.amount:${budgetId}`,
   reductionGoalBaseline: (goalId: string) => `reduction_goal.baseline:${goalId}`,
+  savingsGoalTarget: (goalId: string) => `savings_goal.target:${goalId}`,
+  goalContributionAmount: (contributionId: string) => `goal_contribution.amount:${contributionId}`,
 };

@@ -55,7 +55,11 @@ import { NotificationSettingsRepository } from "./modules/notifications/reposito
 import { PushDeviceRepository } from "./modules/notifications/repositories/push-device.repository.js";
 import { NotificationService } from "./modules/notifications/services/notification.service.js";
 import { BudgetController } from "./modules/planning/controllers/budget.controller.js";
+import { GoalController } from "./modules/planning/controllers/goal.controller.js";
 import { ReductionGoalController } from "./modules/planning/controllers/reduction-goal.controller.js";
+import { GoalContributionRepository } from "./modules/planning/repositories/goal-contribution.repository.js";
+import { GoalRepository } from "./modules/planning/repositories/goal.repository.js";
+import { GoalService } from "./modules/planning/services/goal.service.js";
 import { AlertService } from "./modules/planning/services/alert.service.js";
 import { BudgetRepository } from "./modules/planning/repositories/budget.repository.js";
 import { ReductionGoalRepository } from "./modules/planning/repositories/reduction-goal.repository.js";
@@ -107,6 +111,8 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     jobLocks: new JobLockRepository(db),
     budgets: new BudgetRepository(db, cipher),
     reductionGoals: new ReductionGoalRepository(db, cipher),
+    goals: new GoalRepository(db, cipher),
+    goalContributions: new GoalContributionRepository(db, cipher),
     notifications: new NotificationRepository(db),
     notificationSettings: new NotificationSettingsRepository(db),
     pushDevices: new PushDeviceRepository(db),
@@ -245,8 +251,21 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
-  // Alertas de risco (R22, R74, R67): reagem às mudanças do finance e do planning, depois do commit.
-  const alerts = new AlertService({ budgets, reductions: reductionGoals, notifications, users, clock });
+  // Metas de economia (R15–R17, R68): progresso calculado na leitura (ADR-S2-007).
+  const goals = new GoalService({
+    goals: repositories.goals,
+    contributions: repositories.goalContributions,
+    categories,
+    transactions,
+    users,
+    exchangeRates,
+    notifications,
+    runner,
+    clock,
+  });
+  // Alertas de risco (R22, R74, R67) e meta atingida (R68): reagem às mudanças do finance e do
+  // planning, depois do commit.
+  const alerts = new AlertService({ budgets, reductions: reductionGoals, goals, notifications, users, clock });
   events.subscribe("finance.changed", "planning.alerts", (event) => alerts.onFinanceChanged(event));
   events.subscribe("planning.changed", "planning.alerts", (event) => alerts.onPlanningChanged(event));
   const reports = new ReportService({
@@ -302,6 +321,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     budget: new BudgetController(budgets),
     reductionGoal: new ReductionGoalController(reductionGoals),
     notification: new NotificationController(notifications),
+    goal: new GoalController(goals),
     system: new SystemController(health, maintenance, clock),
     admin: new AdminController(maintenance, appLogs, housekeeping, jobs),
   };
@@ -332,6 +352,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       budgets,
       reductionGoals,
       notifications,
+      goals,
       alerts,
       maintenance,
       housekeeping,

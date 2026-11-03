@@ -6,11 +6,13 @@ import type { NotificationService } from "../../notifications/services/notificat
 import { BUDGET_WARNING_PERCENT } from "../types/budget.types.js";
 import { alertMessages } from "./alert-messages.js";
 import type { BudgetService } from "./budget.service.js";
+import type { GoalService } from "./goal.service.js";
 import type { ReductionGoalService } from "./reduction-goal.service.js";
 
 export interface AlertServiceDeps {
   budgets: BudgetService;
   reductions: ReductionGoalService;
+  goals: GoalService;
   notifications: NotificationService;
   users: UserService;
   clock: Clock;
@@ -26,6 +28,8 @@ export class AlertService {
 
   async onFinanceChanged(event: FinanceChangedEvent): Promise<void> {
     await this.evaluateBudgets(event.userId);
+    // R68: uma receita vinculada pode ter sido editada ou restaurada e completado a meta.
+    if (await this.deps.goals.hasActive(event.userId)) await this.deps.goals.markAchievedIfComplete(event.userId);
   }
 
   async onPlanningChanged(event: PlanningChangedEvent): Promise<void> {

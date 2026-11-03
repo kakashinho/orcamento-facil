@@ -26,6 +26,7 @@ import type {
 } from "../schemas/transaction.schema.js";
 import {
   balanceEffect,
+  type ContributionSource,
   type MovementRange,
   sameState,
   type TransactionDetails,
@@ -199,6 +200,11 @@ export class TransactionService {
   /** Contrato público para o módulo reports: várias transações, na ordem pedida (ex.: maiores despesas — R36). */
   async getMany(userId: string, transactionIds: string[]): Promise<TransactionResponseDto[]> {
     return (await this.deps.transactions.findDetailsByIds(userId, transactionIds)).map(toTransactionResponseDto);
+  }
+
+  /** Contrato público para o planning: receitas vinculadas a metas (R17), inclusive excluídas. */
+  listContributionSources(userId: string, transactionIds: string[]): Promise<ContributionSource[]> {
+    return this.deps.transactions.findContributionSources(userId, transactionIds);
   }
 
   /** Contrato público para o módulo reports. */

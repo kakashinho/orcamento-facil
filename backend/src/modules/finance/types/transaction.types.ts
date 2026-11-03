@@ -96,6 +96,18 @@ export interface TransactionMovement {
   category: { id: string; name: string } | null;
 }
 
+/** Dados de uma receita vinculada a meta (R17) — contrato público do finance para o planning. */
+export interface ContributionSource {
+  id: string;
+  type: TransactionType;
+  amountCents: number;
+  currency: string;
+  date: string;
+  description: string;
+  /** Excluída logicamente (pode voltar pelo desfazer): não conta para a meta enquanto estiver excluída. */
+  deleted: boolean;
+}
+
 export interface MovementRange {
   from?: string | undefined;
   to?: string | undefined;
