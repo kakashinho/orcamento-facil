@@ -55,7 +55,7 @@ export function createFakeApi() {
   const calls: FakeRequest[] = [];
 
   const fetchImpl = jest.fn(
-    async (input: string, init: { method?: string; body?: string; headers?: Record<string, string> } = {}) => {
+    async (input: string, init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}) => {
       const url = new URL(input);
       const method = (init.method ?? "GET").toUpperCase();
       const request: FakeRequest = {
@@ -63,7 +63,8 @@ export function createFakeApi() {
         host: url.host,
         path: url.pathname,
         query: Object.fromEntries(url.searchParams.entries()),
-        body: init.body ? JSON.parse(init.body) : undefined,
+        // JSON vira objeto; multipart (FormData) chega como está para o teste inspecionar.
+        body: typeof init.body === "string" ? JSON.parse(init.body) : init.body,
         headers: Object.fromEntries(Object.entries(init.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v])),
       };
       calls.push(request);

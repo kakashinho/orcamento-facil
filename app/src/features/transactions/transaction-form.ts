@@ -16,6 +16,8 @@ export interface TransactionFormValues {
   categoryId: string | null;
   date: string;
   tags: string[];
+  /** Observações (R57). */
+  notes: string;
 }
 
 export function initialFormValues(
@@ -31,6 +33,7 @@ export function initialFormValues(
       categoryId: editing.category?.id ?? null,
       date: editing.date,
       tags: editing.tags.map((t) => t.name),
+      notes: editing.notes ?? "",
     };
   }
   return {
@@ -41,12 +44,16 @@ export function initialFormValues(
     categoryId: null,
     date: defaults.today,
     tags: [],
+    notes: "",
   };
 }
 
 export type TransactionFormErrors = Partial<
-  Record<"amount" | "description" | "category" | "wallet" | "date" | "tags", string>
+  Record<"amount" | "description" | "category" | "wallet" | "date" | "tags" | "notes", string>
 >;
+
+/** Limite das observações, igual ao do servidor. */
+export const NOTES_MAX = 1000;
 
 /** Validação local antes do envio; o servidor confere de novo (DTO + regras). */
 export function validateTransactionForm(values: TransactionFormValues): TransactionFormErrors {
@@ -57,6 +64,7 @@ export function validateTransactionForm(values: TransactionFormValues): Transact
   if (!values.categoryId) errors.category = "Escolha uma categoria.";
   if (values.description.trim().length > 200) errors.description = "Use no máximo 200 caracteres.";
   if (!values.walletId) errors.wallet = "Escolha a carteira.";
+  if (values.notes.trim().length > NOTES_MAX) errors.notes = `Use no máximo ${NOTES_MAX} caracteres.`;
   return errors;
 }
 
@@ -76,6 +84,7 @@ export function toCreateRequest(values: TransactionFormValues, categories: Categ
     ...(values.walletId ? { walletId: values.walletId } : {}),
     categoryId: values.categoryId,
     tags: values.tags,
+    ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
   };
 }
 
@@ -100,6 +109,8 @@ export function toUpdateRequest(
     .join("\n");
   const after = [...values.tags].sort().join("\n");
   if (before !== after) body.tags = values.tags;
+  const notes = values.notes.trim() || null;
+  if (notes !== (original.notes ?? null)) body.notes = notes;
   return body;
 }
 
@@ -113,6 +124,7 @@ export function mapServerFieldErrors(fields: Record<string, string>): Transactio
     else if (path === "walletId") errors.wallet = message;
     else if (path === "date") errors.date = message;
     else if (path.startsWith("tags")) errors.tags = message;
+    else if (path === "notes") errors.notes = message;
   }
   return errors;
 }

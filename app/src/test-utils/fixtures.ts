@@ -40,6 +40,7 @@ export const categories: Category[] = [
     type: "expense",
     predefined: true,
     systemKey: "food",
+    hiddenInReports: false,
   },
   {
     id: "00000000-0000-4000-8000-000000000002",
@@ -47,6 +48,7 @@ export const categories: Category[] = [
     type: "expense",
     predefined: true,
     systemKey: "transport",
+    hiddenInReports: false,
   },
   {
     id: "00000000-0000-4000-8000-000000000007",
@@ -54,8 +56,16 @@ export const categories: Category[] = [
     type: "income",
     predefined: true,
     systemKey: "salary",
+    hiddenInReports: false,
   },
-  { id: "00000000-0000-4000-8000-000000000008", name: "Outros", type: null, predefined: true, systemKey: "other" },
+  {
+    id: "00000000-0000-4000-8000-000000000008",
+    name: "Outros",
+    type: null,
+    predefined: true,
+    systemKey: "other",
+    hiddenInReports: false,
+  },
 ];
 
 export const wallet = (overrides: Partial<WalletWithConversion> = {}): WalletWithConversion => ({
@@ -66,6 +76,7 @@ export const wallet = (overrides: Partial<WalletWithConversion> = {}): WalletWit
   isDefault: true,
   balance: 1500,
   initialBalance: 1000,
+  minBalance: null,
   balanceInPrimaryCurrency: 1500,
   createdAt: "2026-09-01T12:00:00.000Z",
   updatedAt: "2026-09-01T12:00:00.000Z",
@@ -98,10 +109,12 @@ export const transaction = (overrides: Partial<Transaction> = {}): Transaction =
   currency: "BRL",
   date: "2026-10-03",
   description: "Almoço",
+  notes: null,
   wallet: { id: wallet().id, name: wallet().name, currency: "BRL" },
   category: { id: categories[0].id, name: "Alimentação", predefined: true },
   tags: [{ id: "55555555-5555-4555-8555-555555555555", name: "trabalho" }],
   archived: false,
+  series: null,
   createdAt: "2026-10-03T12:00:00.000Z",
   updatedAt: "2026-10-03T12:00:00.000Z",
   ...overrides,
@@ -129,6 +142,7 @@ export const overview = (overrides: Partial<Overview> = {}): Overview => ({
     },
   ],
   recentTransactions: [transaction()],
+  unreadNotifications: 0,
   ...overrides,
 });
 

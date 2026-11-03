@@ -44,6 +44,17 @@ describe("registrar transação (R06, R07, R43, R77)", () => {
     expect(screen.getByText("Saldos atualizados")).toBeOnTheScreen();
   });
 
+  it("envia as observações (R57)", async () => {
+    const api = setupApi().on("POST", "/api/transactions", { status: 201, body: transaction() });
+    const onClose = await openForm();
+    await fireEvent.changeText(screen.getByLabelText("Valor"), "120");
+    await fireEvent.press(await screen.findByRole("button", { name: "Alimentação" }));
+    await fireEvent.changeText(screen.getByLabelText("Observações"), "Jantar dividido com a Ana");
+    await fireEvent.press(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastCall("POST", "/api/transactions")!.body.notes).toBe("Jantar dividido com a Ana");
+  });
+
   it("só mostra categorias compatíveis com o tipo (R07)", async () => {
     setupApi();
     await openForm();
@@ -207,6 +218,19 @@ describe("detalhes da transação (R12, R48, R49, R52)", () => {
     expect(screen.getByText("−R$ 47,90")).toBeOnTheScreen();
     expect(screen.getByText("03 de outubro de 2026")).toBeOnTheScreen();
     expect(screen.getByText("#trabalho")).toBeOnTheScreen();
+    expect(screen.queryByTestId("details-notes")).toBeNull();
+  });
+
+  it("mostra as observações quando houver (R57)", async () => {
+    setupApi();
+    await renderWithProviders(
+      <TransactionDetailsSheet
+        transaction={transaction({ notes: "Jantar dividido com a Ana" })}
+        onClose={jest.fn()}
+        onEdit={jest.fn()}
+      />,
+    );
+    expect(within(screen.getByTestId("details-notes")).getByText("Jantar dividido com a Ana")).toBeOnTheScreen();
   });
 
   it("exclui só depois da confirmação e permite desfazer", async () => {

@@ -148,6 +148,30 @@ describe("createHttpClient", () => {
     await expect(http.delete("/api/transactions/1")).resolves.toBeUndefined();
   });
 
+  it("envia multipart sem Content-Type JSON e renova a sessão como as demais (anexos — R24)", async () => {
+    let first = true;
+    const fake = createFakeApi().on("POST", "/api/transactions/:id/attachments", () => {
+      if (first) {
+        first = false;
+        return apiError(401, "TOKEN_EXPIRED", "O token de acesso expirou.");
+      }
+      return { status: 201, body: { id: "a1" } };
+    });
+    let token = "old";
+    const session: SessionTokens = {
+      getAccessToken: async () => token,
+      refresh: async () => (token = "new"),
+    };
+    const http = createHttpClient({ baseUrl: "http://api.test", fetch: fake.fetch as never, session });
+    const form = new FormData();
+    form.append("file", "conteúdo");
+    await expect(http.upload("/api/transactions/t1/attachments", form)).resolves.toEqual({ id: "a1" });
+    expect(fake.calls).toHaveLength(2);
+    expect(fake.calls[1].body).toBe(form);
+    expect(fake.calls[1].headers["content-type"]).toBeUndefined();
+    expect(fake.calls[1].headers.authorization).toBe("Bearer new");
+  });
+
   it("monta URL e cabeçalho para downloads", async () => {
     const http = createHttpClient({ baseUrl: "http://api.test", session: sessionWith("tok") });
     expect(http.url("/api/reports/statement/pdf", { from: "2026-10-01", to: "2026-10-04" })).toBe(

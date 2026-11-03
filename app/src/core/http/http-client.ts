@@ -50,6 +50,10 @@ export interface RequestOptions {
   /** false para rotas públicas (login, cadastro...). Padrão: true. */
   auth?: boolean;
   signal?: AbortSignal;
+  /** Corpo multipart (upload de arquivo); o fetch define o Content-Type com o boundary. */
+  form?: FormData;
+  /** Sobrescreve o tempo limite padrão (uploads demoram mais em rede móvel). */
+  timeoutMs?: number;
 }
 
 export interface HttpClient {
@@ -60,6 +64,8 @@ export interface HttpClient {
   patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   delete<T = void>(path: string, options?: RequestOptions): Promise<T>;
+  /** POST multipart com a mesma autenticação e renovação de sessão das demais requisições. */
+  upload<T>(path: string, form: FormData, options?: RequestOptions): Promise<T>;
   /** URL absoluta com query string (downloads de arquivo). */
   url(path: string, query?: Query): string;
   /** Cabeçalho de autorização atualizado (downloads feitos fora do fetch). */
@@ -135,7 +141,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, timeoutMs);
+    }, opts.timeoutMs ?? timeoutMs);
     const onAbort = () => controller.abort();
     opts.signal?.addEventListener("abort", onAbort);
 
@@ -144,7 +150,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       response = await doFetch(url(path, opts.query), {
         method,
         headers,
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        body: opts.form ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
         signal: controller.signal,
       });
     } catch (cause) {
@@ -195,6 +201,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     patch: (path, body, opts) => client.request("PATCH", path, { ...opts, body }),
     put: (path, body, opts) => client.request("PUT", path, { ...opts, body }),
     delete: (path, opts) => client.request("DELETE", path, opts),
+    upload: (path, form, opts) => client.request("POST", path, { timeoutMs: 60_000, ...opts, form }),
     url,
     async authHeaders(): Promise<Record<string, string>> {
       const token = session ? await session.getAccessToken() : null;

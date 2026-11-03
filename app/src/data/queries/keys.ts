@@ -1,5 +1,14 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { ListTransactionsQuery, PeriodQuery, TransactionFilters, TransactionType } from "../api/types";
+import type {
+  BalanceEvolutionQuery,
+  ByCategoryQuery,
+  GoalStatus,
+  ListTransactionsQuery,
+  PeriodQuery,
+  SeriesStatus,
+  TransactionFilters,
+  TransactionType,
+} from "../api/types";
 
 /** Chaves do cache do React Query, centralizadas para invalidar com precisão. */
 export const queryKeys = {
@@ -18,15 +27,45 @@ export const queryKeys = {
   statement: (query: PeriodQuery) => ["reports", "statement", query] as const,
   cashFlow: (query: PeriodQuery) => ["reports", "cash-flow", query] as const,
   monthly: (fromMonth: string, toMonth: string) => ["reports", "monthly", fromMonth, toMonth] as const,
+  byCategory: (query: ByCategoryQuery) => ["reports", "by-category", query] as const,
+  balanceEvolution: (query: BalanceEvolutionQuery) => ["reports", "balance-evolution", query] as const,
+  monthIndicators: (month: string) => ["reports", "month-indicators", month] as const,
+  projection: (months: number) => ["reports", "projection", months] as const,
+  budgetStatus: (month: string, date?: string) => ["budgets", "status", month, date ?? "today"] as const,
+  budgetHistory: (fromMonth: string, toMonth: string) => ["budgets", "history", fromMonth, toMonth] as const,
+  reductionGoals: (month: string) => ["reduction-goals", month] as const,
+  goals: (status: GoalStatus | "all") => ["goals", "list", status] as const,
+  goal: (id: string) => ["goals", "detail", id] as const,
+  goalContributions: (transactionId: string) => ["goals", "contributions", transactionId] as const,
+  series: (status: SeriesStatus | "all") => ["series", "list", status] as const,
+  seriesItem: (id: string) => ["series", "detail", id] as const,
+  notifications: (unread: boolean) => ["notifications", "list", unread] as const,
+  unreadCount: ["notifications", "unread-count"] as const,
+  notificationSettings: ["notification-settings"] as const,
+  reminders: ["reminders"] as const,
+  attachments: (transactionId: string) => ["attachments", transactionId] as const,
   systemStatus: ["system", "status"] as const,
   biometricCredentials: ["biometric", "credentials"] as const,
 };
 
-/** Depois de qualquer alteração financeira: saldos, listas e relatórios ficam desatualizados. */
+/**
+ * Depois de qualquer alteração financeira: saldos, listas e relatórios ficam desatualizados, e também
+ * o status dos orçamentos, o progresso das metas, as séries e os avisos gerados no servidor.
+ */
 export function invalidateFinance(queryClient: QueryClient): Promise<void> {
   return Promise.all(
-    ["overview", "wallets", "transactions", "transfers", "reports", "tags"].map((key) =>
-      queryClient.invalidateQueries({ queryKey: [key] }),
-    ),
+    [
+      "overview",
+      "wallets",
+      "transactions",
+      "transfers",
+      "reports",
+      "tags",
+      "budgets",
+      "reduction-goals",
+      "goals",
+      "series",
+      "notifications",
+    ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
   ).then(() => undefined);
 }

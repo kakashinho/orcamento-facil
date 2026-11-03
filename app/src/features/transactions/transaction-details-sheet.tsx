@@ -111,10 +111,12 @@ export function TransactionDetailsSheet({
               icon="sell"
               label="Categoria"
               value={tx.category?.name ?? "Sem categoria"}
-              last={tx.tags.length === 0}
+              last={tx.tags.length === 0 && !tx.notes}
             />
             {tx.tags.length > 0 ? (
-              <View style={styles.row}>
+              <View
+                style={[styles.row, !!tx.notes && { borderBottomWidth: 1, borderBottomColor: colors.outlineVariant }]}
+              >
                 <Icon name="tag" size={20} />
                 <View style={styles.tags}>
                   {tx.tags.map((tag) => (
@@ -126,6 +128,16 @@ export function TransactionDetailsSheet({
                   ))}
                 </View>
               </View>
+            ) : null}
+            {tx.notes ? (
+              <DetailRow
+                icon="sticky_note_2"
+                label="Observações"
+                value={tx.notes}
+                lines={8}
+                last
+                testID="details-notes"
+              />
             ) : null}
           </View>
 
@@ -193,16 +205,33 @@ export function TransactionDetailsSheet({
   );
 }
 
-function DetailRow({ icon, label, value, last }: { icon: IconName; label: string; value: string; last?: boolean }) {
+function DetailRow({
+  icon,
+  label,
+  value,
+  last,
+  lines = 2,
+  testID,
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  last?: boolean;
+  lines?: number;
+  testID?: string;
+}) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: colors.outlineVariant }]}>
+    <View
+      testID={testID}
+      style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: colors.outlineVariant }]}
+    >
       <Icon name={icon} size={20} />
       <View style={styles.rowBody}>
         <Text variant="caption" color="onSurfaceVariant">
           {label}
         </Text>
-        <Text numberOfLines={2}>{value}</Text>
+        <Text numberOfLines={lines}>{value}</Text>
       </View>
     </View>
   );

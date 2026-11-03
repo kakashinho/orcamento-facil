@@ -12,6 +12,7 @@ export type WalletType = "checking" | "savings" | "cash" | "investment" | "credi
 export type ArchivedFilter = "false" | "true" | "all";
 export type SortKey = "date" | "amount" | "category";
 export type SortOrder = "asc" | "desc";
+export type Frequency = "weekly" | "monthly" | "yearly";
 
 export interface Page<T> {
   data: T[];
@@ -98,6 +99,8 @@ export interface Wallet {
   /** Saldo atual na moeda da carteira (R55). */
   balance: number;
   initialBalance: number;
+  /** Avisar quando o saldo ficar abaixo deste valor (R78); null = sem aviso. */
+  minBalance: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,6 +123,7 @@ export interface CreateWalletRequest {
   currency?: string;
   initialBalance?: number;
   isDefault?: boolean;
+  minBalance?: number | null;
 }
 
 export interface UpdateWalletRequest {
@@ -128,6 +132,7 @@ export interface UpdateWalletRequest {
   currency?: string;
   initialBalance?: number;
   isDefault?: true;
+  minBalance?: number | null;
 }
 
 // ---------- categorias e tags ----------
@@ -139,6 +144,8 @@ export interface Category {
   type: TransactionType | null;
   predefined: boolean;
   systemKey: string | null;
+  /** true = some dos gráficos e listas por categoria (R46). */
+  hiddenInReports: boolean;
 }
 
 export interface CreateCategoryRequest {
@@ -161,6 +168,19 @@ export interface Tag {
 
 // ---------- transações ----------
 
+export type SeriesKind = "recurring" | "installment";
+
+/** Recorrência (R37) ou parcelamento (R62) que gerou a transação. */
+export interface TransactionSeriesInfo {
+  id: string;
+  kind: SeriesKind;
+  frequency: Frequency;
+  /** Número da ocorrência ou parcela (1, 2, …). */
+  occurrence: number;
+  /** Total de parcelas; null na recorrência. */
+  total: number | null;
+}
+
 export interface Transaction {
   id: string;
   type: TransactionType;
@@ -168,10 +188,13 @@ export interface Transaction {
   currency: string;
   date: string;
   description: string;
+  /** Observações (R57). */
+  notes: string | null;
   wallet: { id: string; name: string; currency: string };
   category: { id: string; name: string; predefined: boolean } | null;
   tags: { id: string; name: string }[];
   archived: boolean;
+  series: TransactionSeriesInfo | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,6 +207,7 @@ export interface CreateTransactionRequest {
   walletId?: string;
   categoryId?: string | null;
   tags?: string[];
+  notes?: string | null;
 }
 
 export interface UpdateTransactionRequest {
@@ -194,6 +218,7 @@ export interface UpdateTransactionRequest {
   walletId?: string;
   categoryId?: string | null;
   tags?: string[];
+  notes?: string | null;
   archived?: boolean;
 }
 
@@ -307,7 +332,7 @@ export interface HistoryEntry {
   id: string;
   action: string;
   label: string;
-  entityType: "transaction" | "transfer";
+  entityType: "transaction" | "transfer" | "series";
   entityId: string | null;
   createdAt: string;
   undoneAt: string | null;
@@ -337,6 +362,8 @@ export interface Overview {
   monthSummary: TransactionSummary;
   topExpenseCategories: CategoryTotals[];
   recentTransactions: Transaction[];
+  /** Notificações não lidas (sino). */
+  unreadNotifications: number;
 }
 
 export interface PeriodQuery {
@@ -407,6 +434,340 @@ export interface MonthlyReport {
     totals: { currency: string; income: number; expense: number; net: number }[];
     converted: { income: number; expense: number; net: number } | null;
   }[];
+}
+
+export interface ByCategoryQuery {
+  from: string;
+  to: string;
+  type?: TransactionType;
+  includeHidden?: boolean;
+}
+
+/** Totais por categoria (R13, R50); as ocultas (R46) ficam de fora e são contadas em `hidden`. */
+export interface ByCategoryReport {
+  from: string;
+  to: string;
+  type: TransactionType;
+  primaryCurrency: string;
+  convertedTotal: number | null;
+  categories: CategoryTotals[];
+  hidden: { count: number; convertedTotal: number | null };
+}
+
+export type Granularity = "day" | "month";
+
+export interface BalanceEvolutionQuery {
+  from: string;
+  to: string;
+  walletId?: string;
+  granularity?: Granularity;
+}
+
+/** Evolução do saldo (R14). */
+export interface BalanceEvolution {
+  from: string;
+  to: string;
+  granularity: Granularity;
+  currency: string;
+  walletId: string | null;
+  points: { date: string; balance: number | null }[];
+  ratesStale: boolean;
+}
+
+/** Saldo médio diário (R35), economia do mês (R75) e as 10 maiores despesas (R36). */
+export interface MonthIndicators {
+  month: string;
+  currency: string;
+  days: number;
+  averageDailyBalance: number | null;
+  ratesStale: boolean;
+  savings: {
+    saved: number | null;
+    previousAverage: number | null;
+    previousMonths: string[];
+    difference: number | null;
+    differencePercent: number | null;
+  };
+  topExpenses: { transaction: Transaction; convertedAmount: number | null }[];
+}
+
+/** Projeção do saldo pelos lançamentos fixos (R63). */
+export interface Projection {
+  currency: string;
+  startBalance: number | null;
+  ratesStale: boolean;
+  months: {
+    month: string;
+    openingBalance: number | null;
+    expectedIncome: number | null;
+    expectedExpense: number | null;
+    closingBalance: number | null;
+    items: {
+      seriesId: string;
+      description: string;
+      kind: SeriesKind;
+      type: TransactionType;
+      date: string;
+      amount: number | null;
+    }[];
+  }[];
+}
+
+// ---------- recorrências e parcelamentos (R37, R62) ----------
+
+export type SeriesStatus = "active" | "ended" | "cancelled";
+
+export interface Series {
+  id: string;
+  kind: SeriesKind;
+  type: TransactionType;
+  frequency: Frequency;
+  description: string;
+  wallet: { id: string; name: string; currency: string };
+  category: { id: string; name: string } | null;
+  /** Valor de cada ocorrência (no parcelamento, o das parcelas depois da 1ª). */
+  amount: number;
+  totalAmount: number | null;
+  installments: number | null;
+  startDate: string;
+  endDate: string | null;
+  nextDate: string | null;
+  generatedCount: number;
+  remaining: number | null;
+  status: SeriesStatus;
+  createdAt: string;
+}
+
+export interface SeriesDetail extends Series {
+  occurrences: { occurrence: number; transactionId: string; date: string; amount: number }[];
+}
+
+export interface CreateRecurringRequest extends CreateTransactionRequest {
+  frequency: Frequency;
+  endDate?: string;
+}
+
+export interface CreateInstallmentsRequest {
+  totalAmount: number;
+  installments: number;
+  date: string;
+  description: string;
+  walletId?: string;
+  categoryId?: string | null;
+  tags?: string[];
+  notes?: string | null;
+}
+
+export interface UpdateSeriesRequest {
+  amount?: number;
+  description?: string;
+  categoryId?: string | null;
+  walletId?: string;
+  endDate?: string | null;
+}
+
+export interface CreateSeriesResult {
+  series: Series;
+  /** Ocorrências já vencidas, criadas agora. */
+  transactions: Transaction[];
+}
+
+// ---------- orçamentos e metas (R15–R17, R21, R23, R45, R67, R74) ----------
+
+export type BudgetPeriod = "monthly" | "daily";
+export type BudgetState = "ok" | "warning" | "exceeded";
+export type CategoryRef = { id: string; name: string; predefined: boolean };
+
+export interface Budget {
+  id: string;
+  category: CategoryRef;
+  period: BudgetPeriod;
+  amount: number;
+  currency: string;
+  validFrom: string;
+  validTo: string | null;
+}
+
+export interface BudgetStatus {
+  budgetId: string;
+  category: CategoryRef;
+  period: BudgetPeriod;
+  currency: string;
+  limit: number;
+  spent: number | null;
+  remaining: number | null;
+  percent: number | null;
+  state: BudgetState;
+}
+
+export interface BudgetStatusReport {
+  month: string;
+  date: string;
+  monthly: BudgetStatus[];
+  daily: BudgetStatus[];
+}
+
+export interface BudgetHistory {
+  fromMonth: string;
+  toMonth: string;
+  months: { month: string; items: BudgetStatus[] }[];
+}
+
+export interface CreateBudgetRequest {
+  categoryId: string;
+  period: BudgetPeriod;
+  amount: number;
+}
+
+export interface ReductionGoal {
+  id: string;
+  category: CategoryRef;
+  percent: number;
+  currency: string;
+  baseline: number;
+  target: number;
+  month: string;
+  spent: number | null;
+  state: "on_track" | "exceeded";
+  startMonth: string;
+  endMonth: string | null;
+}
+
+export type GoalStatus = "active" | "achieved" | "cancelled";
+
+export interface Goal {
+  id: string;
+  name: string;
+  category: CategoryRef;
+  targetAmount: number;
+  currency: string;
+  deadline: string;
+  status: GoalStatus;
+  achievedAt: string | null;
+  saved: number | null;
+  percent: number | null;
+  remaining: number | null;
+  daysLeft: number;
+}
+
+export interface GoalDetail extends Goal {
+  contributions: {
+    id: string;
+    transaction: { id: string; date: string; description: string; amount: number; currency: string };
+    amount: number;
+    counted: number;
+  }[];
+}
+
+export interface CreateGoalRequest {
+  name: string;
+  targetAmount: number;
+  deadline: string;
+  categoryId: string;
+}
+
+export type UpdateGoalRequest = Partial<CreateGoalRequest>;
+
+export interface ContributionResult {
+  contribution: {
+    id: string;
+    goalId: string;
+    transactionId: string;
+    amount: number;
+    currency: string;
+    createdAt: string;
+  };
+  goal: Goal;
+  /** true = este vínculo completou a meta (o app celebra — R68). */
+  achievedNow: boolean;
+}
+
+export interface TransactionContribution {
+  id: string;
+  goal: { id: string; name: string };
+  amount: number;
+}
+
+// ---------- notificações e lembretes (R18, R22, R34, R47, R68, R78) ----------
+
+export type NotificationKind =
+  | "budget_warning"
+  | "budget_exceeded"
+  | "daily_limit_exceeded"
+  | "reduction_exceeded"
+  | "unusual_transaction"
+  | "low_balance"
+  | "goal_achieved"
+  | "goal_deadline"
+  | "daily_reminder"
+  | "bill_reminder";
+
+export type NotificationEntityType =
+  "budget" | "reduction_goal" | "savings_goal" | "wallet" | "transaction" | "reminder";
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** Para onde o app navega ao tocar no aviso. */
+  entityType: NotificationEntityType | null;
+  entityId: string | null;
+  data: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationSettings {
+  dailyReminderEnabled: boolean;
+  dailyReminderHour: number;
+  goalRemindersEnabled: boolean;
+  billRemindersEnabled: boolean;
+  alertsPushEnabled: boolean;
+}
+
+export interface Reminder {
+  id: string;
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  frequency: Frequency;
+  nextDueDate: string;
+  seriesId: string | null;
+  active: boolean;
+  lastNotifiedOn: string | null;
+  createdAt: string;
+}
+
+export interface CreateReminderRequest {
+  title?: string;
+  nextDueDate?: string;
+  frequency?: Frequency;
+  amount?: number;
+  /** Nasce de uma despesa recorrente: título, valor e vencimento vêm dela. */
+  seriesId?: string;
+}
+
+export interface UpdateReminderRequest {
+  title?: string;
+  nextDueDate?: string;
+  frequency?: Frequency;
+  amount?: number | null;
+  active?: boolean;
+}
+
+// ---------- anexos (R24, R25, R76) ----------
+
+export type AttachmentKind = "photo" | "document" | "receipt";
+export type AttachmentMimeType = "application/pdf" | "image/jpeg" | "image/png" | "image/webp";
+
+export interface Attachment {
+  id: string;
+  kind: AttachmentKind;
+  fileName: string;
+  mimeType: AttachmentMimeType;
+  sizeBytes: number;
+  createdAt: string;
 }
 
 // ---------- sistema ----------

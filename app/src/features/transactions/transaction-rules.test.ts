@@ -23,6 +23,10 @@ describe("formulário de transação (R06, R11)", () => {
       categoryId: null,
       date: "2026-10-04",
       tags: [],
+      notes: "",
+    });
+    expect(initialFormValues(transaction({ notes: "Dividido com a Ana" }), defaults)).toMatchObject({
+      notes: "Dividido com a Ana",
     });
     expect(initialFormValues(transaction(), defaults)).toMatchObject({
       amountText: "47,90",
@@ -69,6 +73,28 @@ describe("formulário de transação (R06, R11)", () => {
       categoryId: categories[1].id,
       tags: ["casa", "trabalho"],
     });
+  });
+
+  it("observações (R57): aparadas no registro, null ao apagar na edição e no máximo 1000 caracteres", () => {
+    const values = {
+      ...initialFormValues(null, defaults),
+      amountText: "10",
+      categoryId: categories[0].id,
+      notes: "  Dividido com a Ana  ",
+    };
+    expect(toCreateRequest(values, categories).notes).toBe("Dividido com a Ana");
+    expect(toCreateRequest({ ...values, notes: "   " }, categories)).not.toHaveProperty("notes");
+
+    const original = transaction({ notes: "antiga" });
+    const editing = initialFormValues(original, defaults);
+    expect(toUpdateRequest(original, editing, categories)).toEqual({});
+    expect(toUpdateRequest(original, { ...editing, notes: "nova" }, categories)).toEqual({ notes: "nova" });
+    expect(toUpdateRequest(original, { ...editing, notes: "" }, categories)).toEqual({ notes: null });
+
+    expect(validateTransactionForm({ ...values, notes: "x".repeat(1001) }).notes).toBe(
+      "Use no máximo 1000 caracteres.",
+    );
+    expect(mapServerFieldErrors({ notes: "Longa demais." })).toEqual({ notes: "Longa demais." });
   });
 
   it("traduz os `details` da API para os campos do formulário", () => {

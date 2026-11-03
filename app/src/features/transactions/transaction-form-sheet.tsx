@@ -30,6 +30,7 @@ import {
   categoryAccepts,
   initialFormValues,
   mapServerFieldErrors,
+  NOTES_MAX,
   toCreateRequest,
   toUpdateRequest,
   validateTransactionForm,
@@ -304,6 +305,17 @@ export function TransactionFormSheet({
               onChange={(tags) => set("tags", tags)}
               known={knownTags}
               error={errors.tags}
+            />
+
+            <TextField
+              label="Observações"
+              icon="sticky_note_2"
+              value={values.notes}
+              onChangeText={(text) => set("notes", text)}
+              placeholder="Ex.: dividido com a Ana"
+              multiline
+              maxLength={NOTES_MAX}
+              error={errors.notes}
             />
 
             <View style={styles.actions}>

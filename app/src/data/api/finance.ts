@@ -4,15 +4,22 @@ import type {
   CategorySuggestion,
   Conversion,
   CreateCategoryRequest,
+  CreateInstallmentsRequest,
+  CreateRecurringRequest,
+  CreateSeriesResult,
   CreateTransactionRequest,
   CreateTransferRequest,
   CreateWalletRequest,
   CurrencyList,
   DataList,
+  Frequency,
   ListTransactionsQuery,
   Page,
   ParsedTransaction,
   RateTable,
+  Series,
+  SeriesDetail,
+  SeriesStatus,
   Tag,
   Transaction,
   TransactionFilters,
@@ -20,6 +27,7 @@ import type {
   TransactionSummary,
   TransactionType,
   Transfer,
+  UpdateSeriesRequest,
   UpdateTransactionRequest,
   UpdateWalletRequest,
   Wallet,
@@ -37,11 +45,13 @@ export function walletsApi(http: HttpClient) {
   };
 }
 
-/** Categorias predefinidas (R07), personalizadas (R08) e sugestão por descrição (R44). */
+/** Categorias predefinidas (R07), personalizadas (R08), sugestão por descrição (R44) e ocultação (R46). */
 export function categoriesApi(http: HttpClient) {
   return {
     list: (type?: TransactionType) => http.get<DataList<Category>>("/api/categories", { query: { type } }),
     create: (body: CreateCategoryRequest) => http.post<Category>("/api/categories", body),
+    setVisibility: (id: string, hiddenInReports: boolean) =>
+      http.put<Category>(`/api/categories/${id}/visibility`, { hiddenInReports }),
     suggest: (description: string, type?: TransactionType) =>
       http.post<{ suggestions: CategorySuggestion[] }>("/api/categories/suggest", { description, type }),
     remove: (id: string) => http.delete(`/api/categories/${id}`),
@@ -73,6 +83,26 @@ export function transactionsApi(http: HttpClient) {
     unarchive: (id: string) => http.post<Transaction>(`/api/transactions/${id}/unarchive`),
     archiveBefore: (before: string) => http.post<{ archived: number }>("/api/transactions/archive", { before }),
     parse: (text: string) => http.post<ParsedTransaction>("/api/transactions/parse", { text }),
+  };
+}
+
+/** Recorrências (R37) e parcelamentos (R62): as ocorrências viram transação no dia de cada uma. */
+export function seriesApi(http: HttpClient) {
+  return {
+    list: (status: SeriesStatus | "all" = "active") => http.get<DataList<Series>>("/api/series", { query: { status } }),
+    get: (id: string) => http.get<SeriesDetail>(`/api/series/${id}`),
+    createRecurring: (body: CreateRecurringRequest) => http.post<CreateSeriesResult>("/api/series/recurring", body),
+    /** A transação vira a 1ª ocorrência de uma recorrência. */
+    markRecurring: (transactionId: string, frequency: Frequency, endDate?: string) =>
+      http.post<CreateSeriesResult>(`/api/series/recurring/from-transaction/${transactionId}`, {
+        frequency,
+        ...(endDate ? { endDate } : {}),
+      }),
+    createInstallments: (body: CreateInstallmentsRequest) =>
+      http.post<CreateSeriesResult>("/api/series/installments", body),
+    update: (id: string, body: UpdateSeriesRequest) => http.patch<Series>(`/api/series/${id}`, body),
+    /** Cancela as próximas ocorrências; as já registradas continuam. */
+    cancel: (id: string) => http.delete(`/api/series/${id}`),
   };
 }
 
