@@ -2,12 +2,17 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { randomUUID } from "expo-crypto";
 import type {
   CreateCategoryRequest,
+  CreateInstallmentsRequest,
+  CreateRecurringRequest,
   CreateTransactionRequest,
   CreateTransferRequest,
   CreateWalletRequest,
+  Frequency,
   ListTransactionsQuery,
+  SeriesStatus,
   TransactionFilters,
   TransactionType,
+  UpdateSeriesRequest,
   UpdateTransactionRequest,
   UpdateWalletRequest,
 } from "../api/types";
@@ -73,6 +78,18 @@ export function useCategorySuggestion(description: string, type: TransactionType
     queryFn: () => api.categories.suggest(text, type).then((r) => r.suggestions[0] ?? null),
     enabled: enabled && text.length >= 3,
     staleTime: 10 * 60_000,
+  });
+}
+
+/** Oculta ou reexibe a categoria nos relatórios (R46). */
+export function useSetCategoryVisibility() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, hidden }: { id: string; hidden: boolean }) => api.categories.setVisibility(id, hidden),
+    onSuccess: () =>
+      Promise.all(
+        ["categories", "reports", "overview"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+      ),
   });
 }
 
@@ -174,6 +191,60 @@ export function useArchiveBefore() {
 /** Frase reconhecida pela voz → rascunho de transação (R65). Nada é gravado. */
 export function useParseTransactionText() {
   return useMutation({ mutationFn: (text: string) => api.transactions.parse(text) });
+}
+
+// ---------- recorrências e parcelamentos (R37, R62) ----------
+
+export function useSeriesList(status: SeriesStatus | "all" = "active") {
+  return useQuery({ queryKey: queryKeys.series(status), queryFn: () => api.series.list(status).then((r) => r.data) });
+}
+
+export function useCreateRecurring() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateRecurringRequest) => api.series.createRecurring(body),
+    onSuccess: () => invalidateFinance(queryClient),
+  });
+}
+
+export function useCreateInstallments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateInstallmentsRequest) => api.series.createInstallments(body),
+    onSuccess: () => invalidateFinance(queryClient),
+  });
+}
+
+export function useMarkRecurring() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      transactionId,
+      frequency,
+      endDate,
+    }: {
+      transactionId: string;
+      frequency: Frequency;
+      endDate?: string;
+    }) => api.series.markRecurring(transactionId, frequency, endDate),
+    onSuccess: () => invalidateFinance(queryClient),
+  });
+}
+
+export function useUpdateSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: UpdateSeriesRequest }) => api.series.update(id, body),
+    onSuccess: () => invalidateFinance(queryClient),
+  });
+}
+
+export function useCancelSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.series.cancel(id),
+    onSuccess: () => invalidateFinance(queryClient),
+  });
 }
 
 // ---------- transferências (R54) ----------

@@ -37,6 +37,8 @@ export function AppShell() {
         ))}
         {/* Arquivo de transações: tela aberta pelas Preferências, sem item na barra de navegação. */}
         <Tabs.Screen name="archive" options={{ title: "Arquivo", href: null }} />
+        {/* Análises: aberta pelo Início e pela aba Fluxo. */}
+        <Tabs.Screen name="analytics" options={{ title: "Análises", href: null }} />
       </Tabs>
     </AppSheetsProvider>
   );

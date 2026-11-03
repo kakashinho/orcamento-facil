@@ -178,6 +178,26 @@ export function HomeScreen() {
             </>
           ) : null}
 
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Análises do mês"
+            onPress={() => router.navigate("/analytics")}
+            android_ripple={{ color: withAlpha(colors.onSurface, 0.08) }}
+            style={[styles.analytics, { backgroundColor: colors.secondaryContainer }]}
+            testID="home-analytics"
+          >
+            <Icon name="insights" size={24} color="onSecondaryContainer" />
+            <View style={styles.flex}>
+              <Text weight="medium" color="onSecondaryContainer">
+                Análises do mês
+              </Text>
+              <Text variant="bodySmall" color="onSecondaryContainer">
+                Saldo médio, economia, gráficos e projeção
+              </Text>
+            </View>
+            <Icon name="chevron_right" size={22} color="onSecondaryContainer" />
+          </Pressable>
+
           <SectionHeader title="Atividade recente" />
           <View>
             {loading
@@ -367,6 +387,14 @@ const styles = StyleSheet.create({
   categoryIcon: { width: 32, height: 32, borderRadius: radii.full, alignItems: "center", justifyContent: "center" },
   categoryText: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   share: { width: 36, textAlign: "right" },
+  analytics: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: radii.xl,
+    padding: 16,
+    overflow: "hidden",
+  },
   rowSkeleton: {
     height: TRANSACTION_ROW_HEIGHT,
     flexDirection: "row",

@@ -72,6 +72,25 @@ export function formatDate(iso: string, style: "short" | "dayMonth" | "long" = "
   return `${d}/${m}/${year}`;
 }
 
+/** "2026-10-03" → "03/10" (eixo de gráficos diários). */
+export function dayLabel(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+/** Soma dias a uma data AAAA-MM-DD (negativo volta). */
+export function addDays(iso: string, delta: number): string {
+  const [year, m, d] = iso.split("-").map(Number);
+  return toIsoDate(new Date(year, m - 1, d + delta));
+}
+
+/** Dias corridos de `from` até `to` (0 no mesmo dia; negativo se `to` for antes). */
+export function daysBetween(from: string, to: string): number {
+  const [y1, m1, d1] = from.split("-").map(Number);
+  const [y2, m2, d2] = to.split("-").map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
+}
+
 /** Período padrão de relatórios: do primeiro dia do mês até hoje. */
 export function monthToDate(now: Date = new Date()): { from: string; to: string } {
   return { from: firstDayOfMonth(currentMonth(now)), to: todayIso(now) };

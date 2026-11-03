@@ -31,6 +31,14 @@ describe("início (R55, R83)", () => {
     expect(api.callsTo("GET", "/api/reports/overview")).toHaveLength(1);
   });
 
+  it("leva às análises do mês pelo atalho", async () => {
+    setupApi();
+    await renderWithProviders(<HomeScreen />, { sheets: true });
+    await screen.findByText("R$ 2.584,00");
+    await fireEvent.press(screen.getByRole("button", { name: "Análises do mês" }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith("/analytics");
+  });
+
   it("abre o formulário de registro pelo botão Registrar", async () => {
     setupApi();
     await renderWithProviders(<HomeScreen />, { sheets: true });

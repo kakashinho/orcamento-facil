@@ -67,5 +67,10 @@ export function invalidateFinance(queryClient: QueryClient): Promise<void> {
       "series",
       "notifications",
     ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
-  ).then(() => undefined);
+  ).then(() => {
+    // Os avisos nascem no servidor logo depois da resposta (eventos de domínio): consulta de novo em 2 s.
+    setTimeout(() => void queryClient.invalidateQueries({ queryKey: ["notifications"] }), NOTIFICATIONS_DELAY_MS);
+  });
 }
+
+export const NOTIFICATIONS_DELAY_MS = 2_000;

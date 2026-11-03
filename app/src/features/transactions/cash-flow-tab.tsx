@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { errorMessage } from "@/core/http/api-error";
@@ -9,6 +10,7 @@ import { currentMonth, formatDate, monthToDate, shiftMonth } from "@/domain/date
 import { formatMoney, formatMoneyWithSign } from "@/domain/money";
 import {
   Banner,
+  Button,
   Card,
   Chip,
   DateField,
@@ -26,6 +28,7 @@ import { MonthlyChart } from "./components/monthly-chart";
 
 /** Fluxo de caixa (R58): entradas e saídas do período em ordem cronológica, com saldo acumulado. */
 export function CashFlowTab() {
+  const router = useRouter();
   const { colors } = useTheme();
   const layout = useResponsiveLayout();
   const user = useCurrentUser();
@@ -52,9 +55,12 @@ export function CashFlowTab() {
   const header = (
     <View style={[styles.header, { paddingHorizontal: layout.gutter }]}>
       <Card style={styles.card}>
-        <Text variant="bodySmall" weight="medium" style={styles.cardTitle}>
-          Receitas e despesas · últimos 6 meses
-        </Text>
+        <View style={styles.cardHeader}>
+          <Text variant="bodySmall" weight="medium" style={styles.flex}>
+            Receitas e despesas · últimos 6 meses
+          </Text>
+          <Button variant="text" icon="insights" label="Ver análises" onPress={() => router.navigate("/analytics")} />
+        </View>
         <MonthlyChart report={monthly.data} loading={monthly.isPending} />
       </Card>
 
@@ -259,7 +265,7 @@ const styles = StyleSheet.create({
   header: { gap: 12, paddingTop: 12, paddingBottom: 8 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card: { padding: 16 },
-  cardTitle: { marginBottom: 12 },
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: -8, marginBottom: 4 },
   totals: { flexDirection: "row", gap: 8 },
   total: { flex: 1 },
   skeleton: { height: 48 },

@@ -41,6 +41,17 @@ export function formatMoneyWithSign(amount: number, currency: string): string {
   return formatSignedMoney(amount, currency, amount >= 0 ? "in" : "out");
 }
 
+/** Eixos de gráfico: "R$ 950", "R$ 1,2 mil", "−R$ 3,4 mi". */
+export function formatCompactMoney(amount: number, currency: string): string {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? MINUS : "";
+  const symbol = currencySymbol(currency);
+  const oneDecimal = (value: number) => String(Math.round(value * 10) / 10).replace(".", ",");
+  if (abs >= 1_000_000) return `${sign}${symbol} ${oneDecimal(abs / 1_000_000)} mi`;
+  if (abs >= 1_000) return `${sign}${symbol} ${oneDecimal(abs / 1_000)} mil`;
+  return `${sign}${symbol} ${Math.round(abs)}`;
+}
+
 /** Símbolo da moeda em pt-BR ("R$", "US$", "€"). */
 export function currencySymbol(currency: string): string {
   try {
