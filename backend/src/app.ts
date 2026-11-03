@@ -32,6 +32,7 @@ import { transferRoutes } from "./modules/finance/routes/transfer.routes.js";
 import { walletRoutes } from "./modules/finance/routes/wallet.routes.js";
 import { historyRoutes } from "./modules/history/routes/history.routes.js";
 import { notificationRoutes } from "./modules/notifications/routes/notification.routes.js";
+import { reminderRoutes } from "./modules/notifications/routes/reminder.routes.js";
 import { budgetRoutes } from "./modules/planning/routes/budget.routes.js";
 import { goalRoutes } from "./modules/planning/routes/goal.routes.js";
 import { reductionGoalRoutes } from "./modules/planning/routes/reduction-goal.routes.js";
@@ -156,6 +157,7 @@ export async function buildApp(container: Container): Promise<App> {
   await app.register(reductionGoalRoutes(controllers.reductionGoal, guards), { prefix: "/api/reduction-goals" });
   await app.register(notificationRoutes(controllers.notification, guards), { prefix: "/api/notifications" });
   await app.register(goalRoutes(controllers.goal, guards), { prefix: "/api/goals" });
+  await app.register(reminderRoutes(controllers.reminder, guards), { prefix: "/api/reminders" });
   await app.register(adminRoutes(controllers.admin, guards), { prefix: "/api/admin" });
   await app.register(resetPasswordRoutes(controllers.resetPassword));
 

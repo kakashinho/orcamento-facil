@@ -1,5 +1,21 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, jsonb, pgTable, smallint, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  char,
+  check,
+  date,
+  index,
+  jsonb,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
+import { transactionSeries } from "./finance.js";
+import { bytea } from "./types.js";
 import { users } from "./users.js";
 
 // Notificações (R22, R47, R67, R74, R78, R68, R18, R34): caixa do app, aparelhos para push e
@@ -89,4 +105,37 @@ export const notificationSettings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [check("notification_settings_hour_check", sql`${t.dailyReminderHour} between 0 and 23`)],
+);
+
+/**
+ * Lembrete de conta fixa (R34): avisa no dia do vencimento e avança para o próximo pela
+ * frequência. Pode nascer de uma despesa recorrente (R37), mas é independente dela.
+ */
+export const reminders = pgTable(
+  "reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 80 }).notNull(),
+    // Valor opcional, cifrado (R81); o aviso não o mostra (ADR-S2-005).
+    amount: bytea("amount"),
+    currency: char("currency", { length: 3 }),
+    frequency: varchar("frequency", { length: 10 }).notNull(),
+    anchorDay: smallint("anchor_day").notNull(),
+    nextDueDate: date("next_due_date", { mode: "string" }).notNull(),
+    seriesId: uuid("series_id").references(() => transactionSeries.id, { onDelete: "set null" }),
+    active: boolean("active").notNull().default(true),
+    lastNotifiedOn: date("last_notified_on", { mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("reminders_frequency_check", sql`${t.frequency} in ('weekly', 'monthly', 'yearly')`),
+    check("reminders_anchor_check", sql`${t.anchorDay} between 1 and 31`),
+    check("reminders_currency_check", sql`(${t.amount} is null) = (${t.currency} is null)`),
+    index("reminders_due_idx").on(t.nextDueDate).where(sql`${t.active}`),
+    index("reminders_user_idx").on(t.userId),
+  ],
 );

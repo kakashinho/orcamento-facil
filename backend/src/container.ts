@@ -54,6 +54,9 @@ import { UndoService } from "./modules/history/services/undo.service.js";
 import type { UndoHandlers } from "./modules/history/types/history.types.js";
 import { ReportController } from "./modules/reports/controllers/report.controller.js";
 import { NotificationController } from "./modules/notifications/controllers/notification.controller.js";
+import { ReminderController } from "./modules/notifications/controllers/reminder.controller.js";
+import { ReminderRepository } from "./modules/notifications/repositories/reminder.repository.js";
+import { ReminderService } from "./modules/notifications/services/reminder.service.js";
 import { NotificationRepository } from "./modules/notifications/repositories/notification.repository.js";
 import { NotificationSettingsRepository } from "./modules/notifications/repositories/notification-settings.repository.js";
 import { PushDeviceRepository } from "./modules/notifications/repositories/push-device.repository.js";
@@ -123,6 +126,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     notifications: new NotificationRepository(db),
     notificationSettings: new NotificationSettingsRepository(db),
     pushDevices: new PushDeviceRepository(db),
+    reminders: new ReminderRepository(db, cipher),
   };
 
   // ---------- infraestrutura ----------
@@ -335,9 +339,12 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   );
   // Tarefas agendadas de negócio (ADR-S2-004): cada módulo fornece as suas; o system só agenda.
   const dailyReminders = new DailyReminderService({ notifications, devices: repositories.pushDevices, transactions, users });
+  // Lembretes de contas fixas (R34): aviso no dia do vencimento.
+  const reminders = new ReminderService({ reminders: repositories.reminders, series, notifications, users, clock });
   const jobTasks: JobTask[] = [
     { name: "finance.series", run: (now) => series.generateAllDue(now) },
     { name: "notifications.daily-reminder", run: (now) => dailyReminders.run(now) },
+    { name: "notifications.bill-reminders", run: (now) => reminders.runDue(now) },
     { name: "planning.goal-deadlines", run: (now) => goals.remindDeadlines(now) },
     { name: "notifications.push-retry", run: (now) => notifications.retryPending(now) },
   ];
@@ -370,6 +377,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     reductionGoal: new ReductionGoalController(reductionGoals),
     notification: new NotificationController(notifications),
     goal: new GoalController(goals),
+    reminder: new ReminderController(reminders),
     system: new SystemController(health, maintenance, clock),
     admin: new AdminController(maintenance, appLogs, housekeeping, jobs),
   };

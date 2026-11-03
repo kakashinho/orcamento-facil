@@ -37,6 +37,7 @@ describe("migrations oficiais", () => {
       "password_reset_tokens",
       "push_devices",
       "reduction_goals",
+      "reminders",
       "savings_goals",
       "sessions",
       "system_settings",
@@ -64,8 +65,9 @@ describe("migrations oficiais", () => {
       where table_schema = 'public'
         and column_name in ('amount', 'balance', 'initial_balance', 'source_amount', 'target_amount', 'snapshot')`);
     // transactions.amount, wallets.balance/initial_balance, transfers.source/target_amount, action_history.snapshot,
-    // budgets.amount, goal_contributions.amount, savings_goals.target_amount, transaction_series.amount
-    expect(money.rows.length).toBe(10);
+    // budgets.amount, goal_contributions.amount, reminders.amount, savings_goals.target_amount,
+    // transaction_series.amount
+    expect(money.rows.length).toBe(11);
     for (const column of money.rows) expect(column.data_type).toBe("bytea");
   });
 

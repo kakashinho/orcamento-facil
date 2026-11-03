@@ -78,6 +78,13 @@
       "when": 1793675723629,
       "tag": "0010_transaction_series",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793743680065,
+      "tag": "0011_reminders",
+      "breakpoints": true
     }
   ]
 }
