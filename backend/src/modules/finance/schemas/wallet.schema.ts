@@ -18,6 +18,10 @@ const walletType = z.enum(WALLET_TYPES).meta({
   description: "checking = conta corrente; savings = poupança; cash = dinheiro; investment; credit_card; other",
 });
 
+const minBalance = signedAmount
+  .nullable()
+  .meta({ description: "Avisar quando o saldo ficar abaixo deste valor (R78); null remove o aviso", example: 100 });
+
 // ---------- Request DTOs ----------
 
 export const createWalletRequestSchema = z.strictObject({
@@ -26,6 +30,7 @@ export const createWalletRequestSchema = z.strictObject({
   currency: currencyCode.optional().meta({ description: "Moeda da carteira (R56). Padrão: moeda principal do usuário" }),
   initialBalance: signedAmount.optional().meta({ description: "Saldo inicial. Padrão: 0" }),
   isDefault: z.boolean().optional().meta({ description: "Torna esta a carteira padrão das novas transações" }),
+  minBalance: minBalance.optional(),
 });
 export type CreateWalletRequestDto = z.infer<typeof createWalletRequestSchema>;
 
@@ -34,6 +39,7 @@ export const updateWalletRequestSchema = z.strictObject({
   type: walletType.optional(),
   currency: currencyCode.optional().meta({ description: "Só pode mudar enquanto a carteira não tiver movimentações" }),
   initialBalance: signedAmount.optional(),
+  minBalance: minBalance.optional(),
   isDefault: z
     .literal(true, "Para trocar a carteira padrão, marque outra carteira como padrão.")
     .optional()
@@ -52,6 +58,7 @@ export const walletResponseSchema = z
     isDefault: z.boolean(),
     balance: z.number().meta({ description: "Saldo atual na moeda da carteira (R55)" }),
     initialBalance: z.number(),
+    minBalance: z.number().nullable().meta({ description: "Saldo mínimo para alerta (R78); null = sem alerta" }),
     createdAt: responseTimestamp,
     updatedAt: responseTimestamp,
   })

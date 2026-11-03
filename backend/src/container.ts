@@ -265,7 +265,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   });
   // Alertas de risco (R22, R74, R67) e meta atingida (R68): reagem às mudanças do finance e do
   // planning, depois do commit.
-  const alerts = new AlertService({ budgets, reductions: reductionGoals, goals, notifications, users, clock });
+  const alerts = new AlertService({ budgets, reductions: reductionGoals, goals, wallets, notifications, users, clock });
   events.subscribe("finance.changed", "planning.alerts", (event) => alerts.onFinanceChanged(event));
   events.subscribe("planning.changed", "planning.alerts", (event) => alerts.onPlanningChanged(event));
   const reports = new ReportService({

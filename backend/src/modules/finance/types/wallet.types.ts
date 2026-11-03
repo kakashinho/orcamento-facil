@@ -11,6 +11,8 @@ export interface Wallet {
   isDefault: boolean;
   balanceCents: number;
   initialBalanceCents: number;
+  /** Saldo mínimo para alerta (R78); null = sem alerta. */
+  minBalanceCents: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +26,7 @@ export interface WalletChanges {
   isDefault?: boolean;
   balanceCents?: number;
   initialBalanceCents?: number;
+  minBalanceCents?: number | null;
   updatedAt: Date;
 }
 

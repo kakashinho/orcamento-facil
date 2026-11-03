@@ -106,6 +106,7 @@ export class FieldCipher {
 export const aad = {
   walletBalance: (walletId: string) => `wallet.balance:${walletId}`,
   walletInitialBalance: (walletId: string) => `wallet.initial_balance:${walletId}`,
+  walletMinBalance: (walletId: string) => `wallet.min_balance:${walletId}`,
   transactionAmount: (transactionId: string) => `transaction.amount:${transactionId}`,
   transactionNotes: (transactionId: string) => `transaction.notes:${transactionId}`,
   transferSourceAmount: (transferId: string) => `transfer.source_amount:${transferId}`,

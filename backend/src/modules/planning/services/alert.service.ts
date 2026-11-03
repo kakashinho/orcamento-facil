@@ -2,6 +2,7 @@ import type { Clock } from "../../../infrastructure/clock.js";
 import type { FinanceChangedEvent, PlanningChangedEvent } from "../../../infrastructure/events/domain-events.js";
 import { monthOf, todayInTimeZone } from "../../../shared/utils/dates.js";
 import type { UserService } from "../../auth/services/user.service.js";
+import type { WalletService } from "../../finance/services/wallet.service.js";
 import type { NotificationService } from "../../notifications/services/notification.service.js";
 import { BUDGET_WARNING_PERCENT } from "../types/budget.types.js";
 import { alertMessages } from "./alert-messages.js";
@@ -13,6 +14,7 @@ export interface AlertServiceDeps {
   budgets: BudgetService;
   reductions: ReductionGoalService;
   goals: GoalService;
+  wallets: WalletService;
   notifications: NotificationService;
   users: UserService;
   clock: Clock;
@@ -28,12 +30,32 @@ export class AlertService {
 
   async onFinanceChanged(event: FinanceChangedEvent): Promise<void> {
     await this.evaluateBudgets(event.userId);
+    await this.evaluateLowBalance(event.userId, event.walletIds);
     // R68: uma receita vinculada pode ter sido editada ou restaurada e completado a meta.
     if (await this.deps.goals.hasActive(event.userId)) await this.deps.goals.markAchievedIfComplete(event.userId);
   }
 
   async onPlanningChanged(event: PlanningChangedEvent): Promise<void> {
     await this.evaluateBudgets(event.userId);
+  }
+
+  /** R78: carteira abaixo do saldo mínimo — no máximo um aviso por carteira por dia (D-34). */
+  async evaluateLowBalance(userId: string, walletIds: string[]): Promise<void> {
+    const below = await this.deps.wallets.listBelowMinimum(userId, walletIds.length > 0 ? walletIds : undefined);
+    if (below.length === 0) return;
+    const { timezone } = await this.deps.users.getPreferences(userId);
+    const today = todayInTimeZone(this.deps.clock.now(), timezone);
+    for (const wallet of below) {
+      await this.deps.notifications.notify({
+        userId,
+        kind: "low_balance",
+        ...alertMessages.lowBalance(wallet.name),
+        entityType: "wallet",
+        entityId: wallet.id,
+        data: { date: today },
+        dedupeKey: `low-balance:${wallet.id}:${today}`,
+      });
+    }
   }
 
   /** R22 (80% e 100% do mês), R74 (limite do dia) e R67 (alvo de redução do mês). */

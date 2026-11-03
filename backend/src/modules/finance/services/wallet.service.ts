@@ -44,6 +44,7 @@ export function toWalletResponseDto(wallet: Wallet): WalletResponseDto {
     isDefault: wallet.isDefault,
     balance: fromCents(wallet.balanceCents),
     initialBalance: fromCents(wallet.initialBalanceCents),
+    minBalance: wallet.minBalanceCents === null ? null : fromCents(wallet.minBalanceCents),
     createdAt: wallet.createdAt.toISOString(),
     updatedAt: wallet.updatedAt.toISOString(),
   };
@@ -93,6 +94,7 @@ export class WalletService {
             isDefault: makeDefault,
             initialBalanceCents: initialCents,
             balanceCents: initialCents,
+            minBalanceCents: input.minBalance == null ? null : toCents(input.minBalance, "minBalance"),
             createdAt: now,
             updatedAt: now,
           },
@@ -103,7 +105,11 @@ export class WalletService {
       if (error instanceof DuplicateEntryError) this.nameTaken();
       throw error;
     }
-    return this.get(userId, id);
+    const created = await this.get(userId, id);
+    if (input.minBalance != null) {
+      this.deps.events?.publish({ type: "finance.changed", userId, cause: "wallet.updated", walletIds: [id], origin: "user" });
+    }
+    return created;
   }
 
   async update(userId: string, walletId: string, input: UpdateWalletRequestDto): Promise<WalletResponseDto> {
@@ -135,6 +141,10 @@ export class WalletService {
           changes.balanceCents = wallet.balanceCents + newInitial - wallet.initialBalanceCents;
         }
 
+        if (input.minBalance !== undefined) {
+          changes.minBalanceCents = input.minBalance === null ? null : toCents(input.minBalance, "minBalance");
+        }
+
         if (input.isDefault === true && !wallet.isDefault) {
           await wallets.clearDefault(userId, now, tx);
           changes.isDefault = true;
@@ -147,7 +157,7 @@ export class WalletService {
       throw error;
     }
     const updated = await this.get(userId, walletId);
-    if (input.initialBalance !== undefined) {
+    if (input.initialBalance !== undefined || input.minBalance !== undefined) {
       this.deps.events?.publish({ type: "finance.changed", userId, cause: "wallet.updated", walletIds: [walletId], origin: "user" });
     }
     return updated;
@@ -239,6 +249,15 @@ export class WalletService {
     return this.deps.wallets.findDefault(userId, tx);
   }
 
+  /** Contrato público para os alertas (R78): carteiras com saldo abaixo do mínimo definido. */
+  async listBelowMinimum(userId: string, walletIds?: string[]): Promise<Array<{ id: string; name: string }>> {
+    const wanted = walletIds ? new Set(walletIds) : null;
+    return (await this.deps.wallets.listByUser(userId))
+      .filter((wallet) => (wanted === null || wanted.has(wallet.id)) && wallet.minBalanceCents !== null)
+      .filter((wallet) => wallet.balanceCents < wallet.minBalanceCents!)
+      .map((wallet) => ({ id: wallet.id, name: wallet.name }));
+  }
+
   listForReports(userId: string): Promise<Wallet[]> {
     return this.deps.wallets.listByUser(userId);
   }
@@ -256,6 +275,7 @@ export class WalletService {
         isDefault: true,
         initialBalanceCents: 0,
         balanceCents: 0,
+        minBalanceCents: null,
         createdAt: now,
         updatedAt: now,
       },

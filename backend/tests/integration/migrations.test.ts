@@ -73,6 +73,7 @@ describe("migrations oficiais", () => {
       ["transactions", "notes"],
       ["reduction_goals", "baseline_amount"],
       ["savings_goals", "target_amount"],
+      ["wallets", "min_balance"],
     ];
     const { rows } = await client.query<{ table_name: string; column_name: string; data_type: string }>(
       "select table_name, column_name, data_type from information_schema.columns where table_schema = 'public'",

@@ -36,6 +36,8 @@ export const wallets = pgTable(
     // transação de banco do movimento, com bloqueio de linha (SELECT ... FOR UPDATE).
     initialBalance: bytea("initial_balance").notNull(),
     balance: bytea("balance").notNull(),
+    // Saldo mínimo opcional (R78), cifrado; abaixo dele o usuário recebe alerta. Pode ser negativo.
+    minBalance: bytea("min_balance"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

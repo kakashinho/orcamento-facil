@@ -28,6 +28,7 @@ export class WalletRepository extends Repository {
       isDefault: row.isDefault,
       balanceCents: this.cipher.decryptAmount(row.balance, aad.walletBalance(row.id)),
       initialBalanceCents: this.cipher.decryptAmount(row.initialBalance, aad.walletInitialBalance(row.id)),
+      minBalanceCents: row.minBalance === null ? null : this.cipher.decryptAmount(row.minBalance, aad.walletMinBalance(row.id)),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -103,6 +104,8 @@ export class WalletRepository extends Repository {
           isDefault: wallet.isDefault,
           initialBalance: this.cipher.encryptAmount(wallet.initialBalanceCents, aad.walletInitialBalance(wallet.id)),
           balance: this.cipher.encryptAmount(wallet.balanceCents, aad.walletBalance(wallet.id)),
+          minBalance:
+            wallet.minBalanceCents === null ? null : this.cipher.encryptAmount(wallet.minBalanceCents, aad.walletMinBalance(wallet.id)),
           createdAt: wallet.createdAt,
           updatedAt: wallet.updatedAt,
         });
@@ -113,7 +116,7 @@ export class WalletRepository extends Repository {
   }
 
   async update(walletId: string, changes: WalletChanges, tx?: DbTransaction): Promise<void> {
-    const { balanceCents, initialBalanceCents, ...plain } = changes;
+    const { balanceCents, initialBalanceCents, minBalanceCents, ...plain } = changes;
     try {
       await this.executor(tx)
         .update(wallets)
@@ -124,6 +127,12 @@ export class WalletRepository extends Repository {
             : {}),
           ...(initialBalanceCents !== undefined
             ? { initialBalance: this.cipher.encryptAmount(initialBalanceCents, aad.walletInitialBalance(walletId)) }
+            : {}),
+          ...(minBalanceCents !== undefined
+            ? {
+                minBalance:
+                  minBalanceCents === null ? null : this.cipher.encryptAmount(minBalanceCents, aad.walletMinBalance(walletId)),
+              }
             : {}),
         })
         .where(eq(wallets.id, walletId));

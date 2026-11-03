@@ -20,6 +20,10 @@ export const alertMessages = {
     title: "Limite diário ultrapassado",
     body: `${category} passou do limite de hoje.`,
   }),
+  lowBalance: (wallet: string): AlertText => ({
+    title: "Saldo abaixo do mínimo",
+    body: `A carteira ${wallet} ficou abaixo do saldo mínimo.`,
+  }),
   reductionExceeded: (category: string): AlertText => ({
     title: "Meta de redução ultrapassada",
     body: `O gasto com ${category} passou da meta de redução deste mês.`,
