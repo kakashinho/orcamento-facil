@@ -1,7 +1,9 @@
 import type { Clock } from "../../../infrastructure/clock.js";
 import type { FinanceChangedEvent, PlanningChangedEvent } from "../../../infrastructure/events/domain-events.js";
-import { monthOf, todayInTimeZone } from "../../../shared/utils/dates.js";
+import { addDays, monthOf, todayInTimeZone } from "../../../shared/utils/dates.js";
 import type { UserService } from "../../auth/services/user.service.js";
+import type { ExchangeRateService } from "../../finance/services/exchange-rate.service.js";
+import type { TransactionService } from "../../finance/services/transaction.service.js";
 import type { WalletService } from "../../finance/services/wallet.service.js";
 import type { NotificationService } from "../../notifications/services/notification.service.js";
 import { BUDGET_WARNING_PERCENT } from "../types/budget.types.js";
@@ -15,6 +17,8 @@ export interface AlertServiceDeps {
   reductions: ReductionGoalService;
   goals: GoalService;
   wallets: WalletService;
+  transactions: TransactionService;
+  exchangeRates: ExchangeRateService;
   notifications: NotificationService;
   users: UserService;
   clock: Clock;
@@ -25,18 +29,74 @@ export interface AlertServiceDeps {
  * reavalia os orçamentos do usuário depois de cada mudança. É idempotente: cada limiar tem uma
  * chave de deduplicação por orçamento e período, então reavaliar nunca repete o aviso (D-31).
  */
+/** Transação incomum (D-33): histórico mínimo, janela e limiares. */
+const UNUSUAL_MIN_SAMPLES = 5;
+const UNUSUAL_WINDOW_DAYS = 90;
+
 export class AlertService {
   constructor(private readonly deps: AlertServiceDeps) {}
 
   async onFinanceChanged(event: FinanceChangedEvent): Promise<void> {
     await this.evaluateBudgets(event.userId);
     await this.evaluateLowBalance(event.userId, event.walletIds);
+    if (event.cause === "transaction.created" && event.origin === "user" && event.transactionId) {
+      await this.evaluateUnusual(event.userId, event.transactionId);
+    }
     // R68: uma receita vinculada pode ter sido editada ou restaurada e completado a meta.
     if (await this.deps.goals.hasActive(event.userId)) await this.deps.goals.markAchievedIfComplete(event.userId);
   }
 
   async onPlanningChanged(event: PlanningChangedEvent): Promise<void> {
     await this.evaluateBudgets(event.userId);
+  }
+
+  /**
+   * R47: despesa registrada pelo usuário muito acima do habitual da categoria — maior que o dobro
+   * da média e que média + 2 desvios-padrão das despesas dos 90 dias anteriores, com ao menos 5
+   * amostras, tudo na moeda principal (D-33). Parcelas e ocorrências geradas não entram aqui.
+   */
+  async evaluateUnusual(userId: string, transactionId: string): Promise<void> {
+    const { transactions, wallets, exchangeRates, users, notifications } = this.deps;
+    const [transaction] = await transactions.getMany(userId, [transactionId]);
+    if (!transaction || transaction.type !== "expense" || !transaction.category) return;
+    const categoryId = transaction.category.id;
+
+    const history = (
+      await transactions.listMovements(userId, {
+        from: addDays(transaction.date, -UNUSUAL_WINDOW_DAYS),
+        to: addDays(transaction.date, -1),
+        type: "expense",
+      })
+    ).filter((movement) => movement.category?.id === categoryId);
+    if (history.length < UNUSUAL_MIN_SAMPLES) return;
+
+    const { primaryCurrency } = await users.getPreferences(userId);
+    const currencyOf = new Map((await wallets.listForReports(userId)).map((wallet) => [wallet.id, wallet.currency]));
+    const toPrimary = async (cents: number, currency: string) =>
+      (await exchangeRates.tryConvertMany([{ cents, currency }], primaryCurrency))?.total ?? null;
+
+    const samples: number[] = [];
+    for (const movement of history) {
+      const value = await toPrimary(movement.amountCents, currencyOf.get(movement.walletId)!);
+      if (value === null) return;
+      samples.push(value);
+    }
+    const value = await toPrimary(Math.round(transaction.amount * 100), transaction.currency);
+    if (value === null) return;
+
+    const mean = samples.reduce((sum, sample) => sum + sample, 0) / samples.length;
+    const deviation = Math.sqrt(samples.reduce((sum, sample) => sum + (sample - mean) ** 2, 0) / samples.length);
+    if (value <= 2 * mean || value <= mean + 2 * deviation) return;
+
+    await notifications.notify({
+      userId,
+      kind: "unusual_transaction",
+      ...alertMessages.unusualTransaction(transaction.category.name),
+      entityType: "transaction",
+      entityId: transaction.id,
+      data: { categoryId },
+      dedupeKey: `unusual:${transaction.id}`,
+    });
   }
 
   /** R78: carteira abaixo do saldo mínimo — no máximo um aviso por carteira por dia (D-34). */
