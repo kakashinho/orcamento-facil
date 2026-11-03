@@ -5,6 +5,7 @@
 export * from "./theme";
 export { Icon, type IconName, type IconProps } from "./icons/icon";
 export { Button, type ButtonProps, type ButtonVariant } from "./components/button";
+export * from "./charts";
 export { Card } from "./components/card";
 export { Chip, type ChipProps } from "./components/chip";
 export { DateField, type DateFieldProps } from "./components/date-field";
