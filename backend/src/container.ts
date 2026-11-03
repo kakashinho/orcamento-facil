@@ -56,6 +56,7 @@ import { PushDeviceRepository } from "./modules/notifications/repositories/push-
 import { NotificationService } from "./modules/notifications/services/notification.service.js";
 import { BudgetController } from "./modules/planning/controllers/budget.controller.js";
 import { ReductionGoalController } from "./modules/planning/controllers/reduction-goal.controller.js";
+import { AlertService } from "./modules/planning/services/alert.service.js";
 import { BudgetRepository } from "./modules/planning/repositories/budget.repository.js";
 import { ReductionGoalRepository } from "./modules/planning/repositories/reduction-goal.repository.js";
 import { BudgetService } from "./modules/planning/services/budget.service.js";
@@ -244,6 +245,10 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
+  // Alertas de risco (R22, R74, R67): reagem às mudanças do finance e do planning, depois do commit.
+  const alerts = new AlertService({ budgets, reductions: reductionGoals, notifications, users, clock });
+  events.subscribe("finance.changed", "planning.alerts", (event) => alerts.onFinanceChanged(event));
+  events.subscribe("planning.changed", "planning.alerts", (event) => alerts.onPlanningChanged(event));
   const reports = new ReportService({
     wallets,
     transactions,
@@ -327,6 +332,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       budgets,
       reductionGoals,
       notifications,
+      alerts,
       maintenance,
       housekeeping,
       jobs,

@@ -77,6 +77,11 @@ export class BudgetService {
     this.deps.events?.publish({ type: "planning.changed", userId });
   }
 
+  /** Contrato público para os alertas: atalho para quem não tem orçamento nenhum. */
+  hasAny(userId: string): Promise<boolean> {
+    return this.deps.budgets.hasAny(userId);
+  }
+
   async list(userId: string, month?: string): Promise<BudgetListResponseDto> {
     const target = month ?? monthOf(await this.today(userId));
     const categories = await this.totals.categoryInfo(userId);

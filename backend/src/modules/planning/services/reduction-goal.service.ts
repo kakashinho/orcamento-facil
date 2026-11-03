@@ -99,6 +99,11 @@ export class ReductionGoalService {
     throw errors.conflict("REDUCTION_GOAL_EXISTS", message, [fieldIssue("categoryId", message)]);
   }
 
+  /** Contrato público para os alertas: atalho para quem não tem meta de redução. */
+  hasAny(userId: string): Promise<boolean> {
+    return this.deps.goals.hasAny(userId);
+  }
+
   async list(userId: string, month?: string): Promise<ReductionGoalListResponseDto> {
     return { data: await this.statusFor(userId, month ?? (await this.currentMonth(userId))) };
   }
