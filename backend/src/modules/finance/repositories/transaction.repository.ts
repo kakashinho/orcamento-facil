@@ -485,6 +485,22 @@ export class TransactionRepository extends Repository {
       .orderBy(desc(month));
   }
 
+  /** Existe transação ativa registrada (created_at) na data local informada? (lembrete diário — R18) */
+  async existsCreatedOn(userId: string, localDate: string, timeZone: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          isNull(transactions.deletedAt),
+          sql`(${transactions.createdAt} at time zone ${timeZone})::date = ${localDate}::date`,
+        ),
+      )
+      .limit(1);
+    return row !== undefined;
+  }
+
   /** Descrições já categorizadas pelo usuário — "memória" da sugestão de categoria (R44). */
   async recentCategorized(userId: string, limit: number): Promise<Array<{ description: string; categoryId: string }>> {
     const rows = await this.db

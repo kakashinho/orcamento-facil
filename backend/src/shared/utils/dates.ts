@@ -30,6 +30,12 @@ export function todayInTimeZone(now: Date, timeZone: string): string {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+/** Hora (0–23) no fuso informado. */
+export function hourInTimeZone(now: Date, timeZone: string): number {
+  const hour = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(now);
+  return Number(hour);
+}
+
 export function addDays(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
   const date = new Date(Date.UTC(year, month - 1, day + days));

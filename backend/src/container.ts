@@ -54,6 +54,7 @@ import { NotificationController } from "./modules/notifications/controllers/noti
 import { NotificationRepository } from "./modules/notifications/repositories/notification.repository.js";
 import { NotificationSettingsRepository } from "./modules/notifications/repositories/notification-settings.repository.js";
 import { PushDeviceRepository } from "./modules/notifications/repositories/push-device.repository.js";
+import { DailyReminderService } from "./modules/notifications/services/daily-reminder.service.js";
 import { NotificationService } from "./modules/notifications/services/notification.service.js";
 import { BudgetController } from "./modules/planning/controllers/budget.controller.js";
 import { GoalController } from "./modules/planning/controllers/goal.controller.js";
@@ -310,7 +311,12 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     eventLog,
   );
   // Tarefas agendadas de negócio (ADR-S2-004): cada módulo fornece as suas; o system só agenda.
-  const jobTasks: JobTask[] = [{ name: "notifications.push-retry", run: (now) => notifications.retryPending(now) }];
+  const dailyReminders = new DailyReminderService({ notifications, devices: repositories.pushDevices, transactions, users });
+  const jobTasks: JobTask[] = [
+    { name: "notifications.daily-reminder", run: (now) => dailyReminders.run(now) },
+    { name: "planning.goal-deadlines", run: (now) => goals.remindDeadlines(now) },
+    { name: "notifications.push-retry", run: (now) => notifications.retryPending(now) },
+  ];
   const jobs = new JobScheduler(jobTasks, repositories.jobLocks, maintenance, clock, eventLog);
 
   // ---------- HTTP: guards e controllers ----------

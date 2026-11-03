@@ -202,6 +202,11 @@ export class TransactionService {
     return (await this.deps.transactions.findDetailsByIds(userId, transactionIds)).map(toTransactionResponseDto);
   }
 
+  /** Contrato público para o lembrete diário (R18): o usuário registrou algo nesta data local? */
+  hasCreatedOn(userId: string, localDate: string, timeZone: string): Promise<boolean> {
+    return this.deps.transactions.existsCreatedOn(userId, localDate, timeZone);
+  }
+
   /** Contrato público para o planning: receitas vinculadas a metas (R17), inclusive excluídas. */
   listContributionSources(userId: string, transactionIds: string[]): Promise<ContributionSource[]> {
     return this.deps.transactions.findContributionSources(userId, transactionIds);
