@@ -28,6 +28,9 @@ import { AuthService } from "./modules/auth/services/auth.service.js";
 import { BiometricAuthService } from "./modules/auth/services/biometric-auth.service.js";
 import { UserService } from "./modules/auth/services/user.service.js";
 import { CategoryController } from "./modules/finance/controllers/category.controller.js";
+import { AttachmentController } from "./modules/attachments/controllers/attachment.controller.js";
+import { AttachmentRepository } from "./modules/attachments/repositories/attachment.repository.js";
+import { AttachmentService } from "./modules/attachments/services/attachment.service.js";
 import { ExchangeRateController } from "./modules/finance/controllers/exchange-rate.controller.js";
 import { TagController } from "./modules/finance/controllers/tag.controller.js";
 import { SeriesController } from "./modules/finance/controllers/series.controller.js";
@@ -127,6 +130,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     notificationSettings: new NotificationSettingsRepository(db),
     pushDevices: new PushDeviceRepository(db),
     reminders: new ReminderRepository(db, cipher),
+    attachments: new AttachmentRepository(db, cipher),
   };
 
   // ---------- infraestrutura ----------
@@ -233,6 +237,13 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     eventLog,
     events,
+  });
+  // Anexos (R24, R25, R76): cifrados no banco, só para transações ativas (ADR-S2-009).
+  const attachments = new AttachmentService({
+    attachments: repositories.attachments,
+    transactions,
+    clock,
+    quotaBytes: config.attachments.quotaBytes,
   });
   // Cada ação desfazível é revertida pelo service dono do dado (R49).
   const undoHandlers: UndoHandlers = {
@@ -370,6 +381,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     transaction: new TransactionController(transactions),
     transfer: new TransferController(transfers),
     series: new SeriesController(series),
+    attachment: new AttachmentController(attachments),
     exchangeRate: new ExchangeRateController(exchangeRates),
     history: new HistoryController(history, undo),
     report: new ReportController(reports),

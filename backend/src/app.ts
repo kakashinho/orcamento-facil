@@ -18,6 +18,7 @@ import { documentErrorResponses } from "./infrastructure/http/error-responses.js
 import { createMaintenanceGate } from "./infrastructure/http/maintenance-gate.js";
 import type { App } from "./infrastructure/http/types.js";
 import { configureValidationMessages } from "./infrastructure/http/validation-messages.js";
+import { attachmentRoutes } from "./modules/attachments/routes/attachment.routes.js";
 import { authRoutes } from "./modules/auth/routes/auth.routes.js";
 import { biometricRoutes } from "./modules/auth/routes/biometric.routes.js";
 import { resetPasswordRoutes } from "./modules/auth/routes/reset-password.routes.js";
@@ -147,6 +148,7 @@ export async function buildApp(container: Container): Promise<App> {
   await app.register(categoryRoutes(controllers.category, guards), { prefix: "/api/categories" });
   await app.register(tagRoutes(controllers.tag, guards), { prefix: "/api/tags" });
   await app.register(transactionRoutes(controllers.transaction, guards), { prefix: "/api/transactions" });
+  await app.register(attachmentRoutes(controllers.attachment, guards), { prefix: "/api/transactions" });
   await app.register(transferRoutes(controllers.transfer, guards), { prefix: "/api/transfers" });
   await app.register(seriesRoutes(controllers.series, guards), { prefix: "/api/series" });
   await app.register(exchangeRateRoutes(controllers.exchangeRate, guards), { prefix: "/api/exchange-rates" });

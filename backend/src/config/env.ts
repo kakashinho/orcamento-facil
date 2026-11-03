@@ -74,6 +74,9 @@ const envSchema = z.object({
   // Tarefas agendadas de negócio: ocorrências de séries, lembretes, reenvio de push (0 desliga).
   JOBS_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
 
+  // Espaço para anexos por usuário (D-70).
+  ATTACHMENT_QUOTA_MB: z.coerce.number().int().positive().default(100),
+
   // Push pelo Firebase Cloud Messaging (R18). Sem nada disso, o push é só registrado no log.
   FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
   FCM_PROJECT_ID: z.string().optional(),
@@ -124,6 +127,7 @@ export interface AppConfig {
     /** 0 desliga a execução automática (POST /api/admin/jobs/run continua disponível). */
     intervalMinutes: number;
   };
+  attachments: { quotaBytes: number };
   /** Credencial da conta de serviço do Firebase; ausente = push só registrado no log. */
   push: { fcm?: { projectId: string; clientEmail: string; privateKey: string } };
 }
@@ -239,6 +243,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       logRetentionDays: env.LOG_RETENTION_DAYS,
     },
     jobs: { intervalMinutes: env.JOBS_INTERVAL_MINUTES },
+    attachments: { quotaBytes: env.ATTACHMENT_QUOTA_MB * 1024 * 1024 },
     push: (() => {
       const fcm = loadFcmCredentials(env);
       return fcm ? { fcm } : {};

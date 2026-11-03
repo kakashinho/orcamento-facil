@@ -42,6 +42,7 @@ describe("migrations oficiais", () => {
       "sessions",
       "system_settings",
       "tags",
+      "transaction_attachments",
       "transaction_series",
       "transaction_tags",
       "transactions",
@@ -77,6 +78,7 @@ describe("migrations oficiais", () => {
       ["reduction_goals", "baseline_amount"],
       ["savings_goals", "target_amount"],
       ["wallets", "min_balance"],
+      ["transaction_attachments", "content"],
     ];
     const { rows } = await client.query<{ table_name: string; column_name: string; data_type: string }>(
       "select table_name, column_name, data_type from information_schema.columns where table_schema = 'public'",

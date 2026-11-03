@@ -118,4 +118,5 @@ export const aad = {
   savingsGoalTarget: (goalId: string) => `savings_goal.target:${goalId}`,
   goalContributionAmount: (contributionId: string) => `goal_contribution.amount:${contributionId}`,
   reminderAmount: (reminderId: string) => `reminder.amount:${reminderId}`,
+  attachmentContent: (attachmentId: string) => `attachment.content:${attachmentId}`,
 };
