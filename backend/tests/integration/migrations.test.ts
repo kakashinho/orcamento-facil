@@ -41,6 +41,7 @@ describe("migrations oficiais", () => {
       "sessions",
       "system_settings",
       "tags",
+      "transaction_series",
       "transaction_tags",
       "transactions",
       "transfers",
@@ -63,8 +64,8 @@ describe("migrations oficiais", () => {
       where table_schema = 'public'
         and column_name in ('amount', 'balance', 'initial_balance', 'source_amount', 'target_amount', 'snapshot')`);
     // transactions.amount, wallets.balance/initial_balance, transfers.source/target_amount, action_history.snapshot,
-    // budgets.amount, goal_contributions.amount
-    expect(money.rows.length).toBe(8);
+    // budgets.amount, goal_contributions.amount, savings_goals.target_amount, transaction_series.amount
+    expect(money.rows.length).toBe(10);
     for (const column of money.rows) expect(column.data_type).toBe("bytea");
   });
 
@@ -91,6 +92,7 @@ describe("migrations oficiais", () => {
     expect(byName.get("wallets_user_name_uq")).toMatch(/UNIQUE.*lower\(\(?name/);
     expect(byName.get("categories_user_name_uq")).toMatch(/WHERE/);
     expect(byName.get("transactions_user_date_idx")).toMatch(/date DESC.*created_at DESC.*id DESC/);
+    expect(byName.get("transactions_series_occurrence_uq")).toMatch(/UNIQUE.*series_id.*series_occurrence/);
   });
 
   it("semeiam categorias predefinidas (R07) com tipo e a configuração de manutenção", async () => {

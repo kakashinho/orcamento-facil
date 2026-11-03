@@ -26,6 +26,7 @@ import { categoryRoutes } from "./modules/finance/routes/category.routes.js";
 import { currencyRoutes } from "./modules/finance/routes/currency.routes.js";
 import { exchangeRateRoutes } from "./modules/finance/routes/exchange-rate.routes.js";
 import { tagRoutes } from "./modules/finance/routes/tag.routes.js";
+import { seriesRoutes } from "./modules/finance/routes/series.routes.js";
 import { transactionRoutes } from "./modules/finance/routes/transaction.routes.js";
 import { transferRoutes } from "./modules/finance/routes/transfer.routes.js";
 import { walletRoutes } from "./modules/finance/routes/wallet.routes.js";
@@ -146,6 +147,7 @@ export async function buildApp(container: Container): Promise<App> {
   await app.register(tagRoutes(controllers.tag, guards), { prefix: "/api/tags" });
   await app.register(transactionRoutes(controllers.transaction, guards), { prefix: "/api/transactions" });
   await app.register(transferRoutes(controllers.transfer, guards), { prefix: "/api/transfers" });
+  await app.register(seriesRoutes(controllers.series, guards), { prefix: "/api/series" });
   await app.register(exchangeRateRoutes(controllers.exchangeRate, guards), { prefix: "/api/exchange-rates" });
   await app.register(currencyRoutes(controllers.exchangeRate), { prefix: "/api/currencies" });
   await app.register(historyRoutes(controllers.history, guards), { prefix: "/api/history" });

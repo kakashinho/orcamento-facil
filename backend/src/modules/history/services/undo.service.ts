@@ -15,6 +15,9 @@ const MESSAGES: Record<HistoryAction, string> = {
   "transaction.bulk_archive": "Arquivamento em lote desfeito.",
   "transfer.create": "Transferência desfeita.",
   "transfer.delete": "Exclusão da transferência desfeita: a transferência foi restaurada.",
+  "series.create": "Criação desfeita: a série foi cancelada e as transações dela, excluídas.",
+  "series.update": "Alteração da série desfeita.",
+  "series.cancel": "Cancelamento desfeito: a série voltou a gerar as próximas ocorrências.",
 };
 
 /**

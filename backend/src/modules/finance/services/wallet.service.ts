@@ -7,6 +7,7 @@ import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.j
 import { fromCents, toCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
 import type { ActionHistoryService } from "../../history/services/action-history.service.js";
+import type { SeriesRepository } from "../repositories/series.repository.js";
 import type { TransactionRepository } from "../repositories/transaction.repository.js";
 import type { TransferRepository } from "../repositories/transfer.repository.js";
 import type { WalletRepository } from "../repositories/wallet.repository.js";
@@ -24,6 +25,7 @@ export interface WalletServiceDeps {
   wallets: WalletRepository;
   transactions: TransactionRepository;
   transfers: TransferRepository;
+  series: SeriesRepository;
   history: ActionHistoryService;
   users: UserService;
   exchangeRates: ExchangeRateService;
@@ -168,10 +170,17 @@ export class WalletService {
    * (mantidas só para o "desfazer") saem definitivamente, junto com o histórico delas.
    */
   async delete(userId: string, walletId: string): Promise<void> {
-    const { wallets, transactions, transfers, history, runner, clock } = this.deps;
+    const { wallets, transactions, transfers, series, history, runner, clock } = this.deps;
     await runner.run(async (tx) => {
       const wallet = await wallets.findByIdForUpdate(userId, walletId, tx);
       if (!wallet) throw errors.notFound("Carteira");
+      // D-18: série ativa geraria ocorrências numa carteira inexistente.
+      if ((await series.countActiveByWallet(walletId, tx)) > 0) {
+        throw errors.conflict(
+          "WALLET_HAS_SERIES",
+          "Cancele as recorrências e parcelamentos desta carteira antes de excluí-la.",
+        );
+      }
 
       const active = {
         transactions: await transactions.countByWallet(walletId, true, tx),
@@ -190,6 +199,7 @@ export class WalletService {
         ...(await transfers.deleteAllByWallet(walletId, tx)),
       ];
       await history.purgeEntities(tx, userId, purged);
+      await series.deleteInactiveByWallet(walletId, tx);
       await wallets.delete(walletId, tx);
 
       if (wallet.isDefault) {

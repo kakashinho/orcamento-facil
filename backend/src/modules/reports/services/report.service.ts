@@ -11,6 +11,7 @@ import {
 import { fromCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
 import type { CategoryService } from "../../finance/services/category.service.js";
+import type { SeriesService } from "../../finance/services/series.service.js";
 import type { NotificationService } from "../../notifications/services/notification.service.js";
 import type { ExchangeRateService } from "../../finance/services/exchange-rate.service.js";
 import type { TransactionService } from "../../finance/services/transaction.service.js";
@@ -29,6 +30,8 @@ import type {
   MonthIndicatorsResponseDto,
   MonthlyQueryDto,
   MonthlyResponseDto,
+  ProjectionQueryDto,
+  ProjectionResponseDto,
   OverviewQueryDto,
   OverviewResponseDto,
   PeriodQueryDto,
@@ -44,6 +47,7 @@ export interface ReportServiceDeps {
   users: UserService;
   exchangeRates: ExchangeRateService;
   categories: CategoryService;
+  series: SeriesService;
   notifications: NotificationService;
   clock: Clock;
 }
@@ -377,6 +381,62 @@ export class ReportService {
       points,
       ratesStale,
     };
+  }
+
+  /**
+   * R63: saldo projetado mês a mês. Parte do saldo total de hoje e soma as ocorrências ainda não
+   * registradas das séries ativas — recorrências e parcelas restantes (D-14) —, convertidas para a
+   * moeda principal com o câmbio atual.
+   */
+  async projection(userId: string, query: ProjectionQueryDto): Promise<ProjectionResponseDto> {
+    const { users, wallets, series, exchangeRates, clock } = this.deps;
+    const { timezone, primaryCurrency } = await users.getPreferences(userId);
+    const firstMonth = monthOf(todayInTimeZone(clock.now(), timezone));
+    const months = Array.from({ length: query.months }, (_, index) => addMonths(firstMonth, index));
+    const summary = await wallets.summary(userId);
+    const currencyOf = new Map((await this.walletsOf(userId)).map((wallet) => [wallet.id, wallet.currency]));
+    const planned = await series.listForProjection(userId, monthRange(months[months.length - 1]!).to);
+
+    let ratesStale = summary.ratesStale;
+    const byMonth = new Map<string, Array<{ item: (typeof planned)[number]; cents: number | null }>>();
+    for (const item of planned) {
+      const converted = await exchangeRates.tryConvertMany(
+        [{ cents: item.amountCents, currency: currencyOf.get(item.walletId)! }],
+        primaryCurrency,
+      );
+      ratesStale ||= converted?.stale ?? false;
+      const month = monthOf(item.date);
+      byMonth.set(month, [...(byMonth.get(month) ?? []), { item, cents: converted?.total ?? null }]);
+    }
+
+    let opening = summary.totalBalance === null ? null : Math.round(summary.totalBalance * 100);
+    const result: ProjectionResponseDto["months"] = [];
+    for (const month of months) {
+      const entries = byMonth.get(month) ?? [];
+      const missing = entries.some((entry) => entry.cents === null);
+      const sum = (type: "income" | "expense") =>
+        entries.filter((entry) => entry.item.type === type).reduce((total, entry) => total + (entry.cents ?? 0), 0);
+      const income = missing ? null : sum("income");
+      const expense = missing ? null : sum("expense");
+      const closing = opening === null || income === null || expense === null ? null : opening + income - expense;
+      result.push({
+        month,
+        openingBalance: opening === null ? null : fromCents(opening),
+        expectedIncome: income === null ? null : fromCents(income),
+        expectedExpense: expense === null ? null : fromCents(expense),
+        closingBalance: closing === null ? null : fromCents(closing),
+        items: entries.map(({ item, cents }) => ({
+          seriesId: item.seriesId,
+          description: item.description,
+          kind: item.kind,
+          type: item.type,
+          date: item.date,
+          amount: cents === null ? null : fromCents(cents),
+        })),
+      });
+      opening = closing;
+    }
+    return { currency: primaryCurrency, startBalance: summary.totalBalance, ratesStale, months: result };
   }
 
   /** R35, R75 e R36 numa ida ao servidor, para a tela de análises. */

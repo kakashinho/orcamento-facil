@@ -29,6 +29,7 @@ import {
   type ContributionSource,
   type MovementRange,
   sameState,
+  type SeriesLink,
   type TransactionDetails,
   type TransactionMovement,
   type TransactionRecord,
@@ -70,6 +71,7 @@ export function toTransactionResponseDto(details: TransactionDetails): Transacti
     category: details.category,
     tags: details.tags,
     archived: details.archived,
+    series: details.series,
     createdAt: details.createdAt.toISOString(),
     updatedAt: details.updatedAt.toISOString(),
   };
@@ -221,8 +223,8 @@ export class TransactionService {
 
   async create(userId: string, input: CreateTransactionRequestDto): Promise<TransactionResponseDto> {
     const id = await this.deps.runner.run(async (tx) => {
-      const state = await this.resolveState(tx, userId, { ...input, archived: false }, null);
-      const transactionId = await this.insertTransaction(tx, userId, state);
+      const state = await this.prepareState(tx, userId, input);
+      const transactionId = await this.insertPrepared(tx, userId, state);
       await this.deps.history.record(tx, userId, "transaction.create", "transaction", transactionId, { transactionId });
       return transactionId;
     });
@@ -320,6 +322,39 @@ export class TransactionService {
       }
       return { archived: ids.length };
     });
+  }
+
+  // ================================================================ séries (R37, R62)
+
+  /**
+   * Contrato público para as séries: valida uma transação nova como `create` faz (carteira,
+   * categoria compatível, tags), sem gravar. A série usa o estado validado como modelo.
+   */
+  prepareState(tx: DbTransaction, userId: string, input: CreateTransactionRequestDto): Promise<TransactionState> {
+    return this.resolveState(tx, userId, { ...input, archived: false }, null);
+  }
+
+  /**
+   * Contrato público para as séries: grava a transação dentro da transação de banco aberta, com
+   * saldo atualizado (R55), sem registrar histórico — quem chama decide o que entra no desfazer.
+   */
+  insertPrepared(tx: DbTransaction, userId: string, state: TransactionState, link?: SeriesLink): Promise<string> {
+    return this.insertTransaction(tx, userId, state, link);
+  }
+
+  /** Trava a transação ativa do usuário para marcá-la como recorrente; 404 se não existir. */
+  async lockForSeries(tx: DbTransaction, userId: string, transactionId: string): Promise<TransactionRecord> {
+    const record = await this.deps.transactions.findForUpdate(userId, transactionId, false, tx);
+    if (!record) throw errors.notFound("Transação");
+    return record;
+  }
+
+  linkToSeries(tx: DbTransaction, transactionId: string, link: SeriesLink | null): Promise<void> {
+    return this.deps.transactions.setSeries(transactionId, link, tx);
+  }
+
+  listBySeries(userId: string, seriesId: string) {
+    return this.deps.transactions.listBySeries(userId, seriesId);
   }
 
   // ================================================================ reversões do "desfazer" (R49)
@@ -439,10 +474,10 @@ export class TransactionService {
     };
   }
 
-  private async insertTransaction(tx: DbTransaction, userId: string, state: TransactionState): Promise<string> {
+  private async insertTransaction(tx: DbTransaction, userId: string, state: TransactionState, link?: SeriesLink): Promise<string> {
     if (state.amountCents <= 0) throw errors.invalidField("amount", "O valor deve ser maior que zero.");
     const id = randomUUID();
-    await this.deps.transactions.insert({ ...state, id, userId, createdAt: this.deps.clock.now() }, tx);
+    await this.deps.transactions.insert({ ...state, id, userId, createdAt: this.deps.clock.now(), link }, tx);
     await this.deps.wallets.applyBalanceDeltas(tx, userId, addDelta(new Map(), state.walletId, balanceEffect(state)));
     return id;
   }

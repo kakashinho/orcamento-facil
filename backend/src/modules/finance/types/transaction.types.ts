@@ -39,6 +39,8 @@ export function sameState(a: TransactionState, b: TransactionState): boolean {
 export interface TransactionRecord extends TransactionState {
   id: string;
   userId: string;
+  /** Série que gerou a transação (R37, R62); null = avulsa. */
+  seriesId: string | null;
   deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -57,8 +59,22 @@ export interface TransactionDetails {
   category: { id: string; name: string; predefined: boolean } | null;
   tags: Array<{ id: string; name: string }>;
   archived: boolean;
+  /** Recorrência ou parcelamento de origem (R37, R62); `total` = número de parcelas. */
+  series: {
+    id: string;
+    kind: "recurring" | "installment";
+    frequency: "weekly" | "monthly" | "yearly";
+    occurrence: number;
+    total: number | null;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Vínculo de uma transação com a série que a gerou. */
+export interface SeriesLink {
+  seriesId: string;
+  occurrence: number;
 }
 
 export type ArchivedFilter = "false" | "true" | "all";

@@ -16,7 +16,7 @@ const historyEntrySchema = z.object({
   id: responseId,
   action: z.enum(HISTORY_ACTIONS),
   label: z.string().meta({ description: "Texto da ação para exibir ao usuário", example: "Transação excluída" }),
-  entityType: z.enum(["transaction", "transfer"]),
+  entityType: z.enum(["transaction", "transfer", "series"]),
   entityId: responseId.nullable(),
   createdAt: responseTimestamp,
 });

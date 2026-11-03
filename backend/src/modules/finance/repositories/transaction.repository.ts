@@ -2,13 +2,21 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sq
 import { aad, type FieldCipher } from "../../../infrastructure/crypto/field-cipher.js";
 import type { Database, DbTransaction } from "../../../infrastructure/database/client.js";
 import { Repository } from "../../../infrastructure/database/repository.js";
-import { categories, tags, transactions, transactionTags, wallets } from "../../../infrastructure/database/schema.js";
+import {
+  categories,
+  tags,
+  transactionSeries,
+  transactions,
+  transactionTags,
+  wallets,
+} from "../../../infrastructure/database/schema.js";
 import { monthRange } from "../../../shared/utils/dates.js";
 import { escapeLike } from "../../../shared/utils/text.js";
 import type {
   ContributionSource,
   DateCursor,
   MovementRange,
+  SeriesLink,
   SortOrder,
   TransactionDetails,
   TransactionFilters,
@@ -38,6 +46,11 @@ const detailColumns = {
   categoryId: categories.id,
   categoryName: categories.name,
   categoryOwner: categories.userId,
+  seriesId: transactions.seriesId,
+  seriesOccurrence: transactions.seriesOccurrence,
+  seriesKind: transactionSeries.kind,
+  seriesFrequency: transactionSeries.frequency,
+  seriesInstallments: transactionSeries.installments,
 };
 
 type DetailRow = {
@@ -56,6 +69,11 @@ type DetailRow = {
   categoryId: string | null;
   categoryName: string | null;
   categoryOwner: string | null;
+  seriesId: string | null;
+  seriesOccurrence: number | null;
+  seriesKind: string | null;
+  seriesFrequency: string | null;
+  seriesInstallments: number | null;
 };
 
 /**
@@ -92,7 +110,7 @@ export class TransactionRepository extends Repository {
   }
 
   async insert(
-    record: { id: string; userId: string; createdAt: Date } & TransactionState,
+    record: { id: string; userId: string; createdAt: Date; link?: SeriesLink | undefined } & TransactionState,
     tx: DbTransaction,
   ): Promise<void> {
     await tx.insert(transactions).values({
@@ -106,10 +124,38 @@ export class TransactionRepository extends Repository {
       notes: this.encryptNotes(record.id, record.notes),
       categoryId: record.categoryId,
       archived: record.archived,
+      seriesId: record.link?.seriesId ?? null,
+      seriesOccurrence: record.link?.occurrence ?? null,
       createdAt: record.createdAt,
       updatedAt: record.createdAt,
     });
     await this.replaceTags(tx, record.id, record.tagIds);
+  }
+
+  /** Liga (ou desliga, com null) a transação a uma série (R37: marcar como recorrente). */
+  async setSeries(transactionId: string, link: SeriesLink | null, tx: DbTransaction): Promise<void> {
+    await tx
+      .update(transactions)
+      .set({ seriesId: link?.seriesId ?? null, seriesOccurrence: link?.occurrence ?? null })
+      .where(eq(transactions.id, transactionId));
+  }
+
+  /** Ocorrências ativas geradas por uma série, em ordem. */
+  async listBySeries(
+    userId: string,
+    seriesId: string,
+  ): Promise<Array<{ id: string; occurrence: number; date: string; amountCents: number }>> {
+    const rows = await this.db
+      .select({ id: transactions.id, occurrence: transactions.seriesOccurrence, date: transactions.date, amount: transactions.amount })
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), eq(transactions.seriesId, seriesId), isNull(transactions.deletedAt)))
+      .orderBy(asc(transactions.seriesOccurrence));
+    return rows.map((row) => ({
+      id: row.id,
+      occurrence: row.occurrence ?? 0,
+      date: row.date,
+      amountCents: this.decryptAmount(row.id, row.amount),
+    }));
   }
 
   private async toRecord(row: TransactionRow, tx?: DbTransaction): Promise<TransactionRecord> {
@@ -120,6 +166,7 @@ export class TransactionRepository extends Repository {
     return {
       id: row.id,
       userId: row.userId,
+      seriesId: row.seriesId,
       walletId: row.walletId,
       type: row.type as TransactionType,
       amountCents: this.decryptAmount(row.id, row.amount),
@@ -279,7 +326,8 @@ export class TransactionRepository extends Repository {
       .select(detailColumns)
       .from(transactions)
       .innerJoin(wallets, eq(wallets.id, transactions.walletId))
-      .leftJoin(categories, eq(categories.id, transactions.categoryId));
+      .leftJoin(categories, eq(categories.id, transactions.categoryId))
+      .leftJoin(transactionSeries, eq(transactionSeries.id, transactions.seriesId));
   }
 
   /** Completa as linhas com as tags (uma única consulta para a página inteira). */
@@ -312,6 +360,16 @@ export class TransactionRepository extends Repository {
           : null,
       tags: tagsByTransaction.get(row.id) ?? [],
       archived: row.archived,
+      series:
+        row.seriesId && row.seriesKind
+          ? {
+              id: row.seriesId,
+              kind: row.seriesKind as "recurring" | "installment",
+              frequency: row.seriesFrequency as "weekly" | "monthly" | "yearly",
+              occurrence: row.seriesOccurrence ?? 0,
+              total: row.seriesInstallments,
+            }
+          : null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));

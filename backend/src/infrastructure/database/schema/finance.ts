@@ -5,9 +5,11 @@ import {
   check,
   date,
   index,
+  integer,
   numeric,
   pgTable,
   primaryKey,
+  smallint,
   timestamp,
   uniqueIndex,
   uuid,
@@ -110,6 +112,57 @@ export const tags = pgTable(
   (t) => [uniqueIndex("tags_user_name_uq").on(t.userId, sql`lower(${t.name})`)],
 );
 
+/**
+ * Recorrência (R37) ou parcelamento (R62): o plano das ocorrências. Cada ocorrência só vira
+ * transação quando a data chega (ADR-S2-002), gerada pelo `TransactionService`; o saldo e os
+ * relatórios atuais não mudam de significado.
+ */
+export const transactionSeries = pgTable(
+  "transaction_series",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 12 }).notNull(),
+    type: varchar("type", { length: 10 }).notNull(),
+    frequency: varchar("frequency", { length: 10 }).notNull(),
+    walletId: uuid("wallet_id")
+      .notNull()
+      .references(() => wallets.id, { onDelete: "restrict" }),
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    description: varchar("description", { length: 200 }).notNull(),
+    tagIds: uuid("tag_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    // Recorrência: valor de cada ocorrência. Parcelamento: valor total (a sobra vai na 1ª parcela).
+    amount: bytea("amount").notNull(),
+    installments: smallint("installments"),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    // Dia original: 31/01 mensal cai em 28/02 e volta a 31/03 (D-12).
+    anchorDay: smallint("anchor_day").notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    nextDate: date("next_date", { mode: "string" }),
+    generatedCount: integer("generated_count").notNull().default(0),
+    status: varchar("status", { length: 10 }).notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("transaction_series_kind_check", sql`${t.kind} in ('recurring', 'installment')`),
+    check("transaction_series_type_check", sql`${t.type} in ('income', 'expense')`),
+    check("transaction_series_frequency_check", sql`${t.frequency} in ('weekly', 'monthly', 'yearly')`),
+    check("transaction_series_status_check", sql`${t.status} in ('active', 'ended', 'cancelled')`),
+    check("transaction_series_anchor_check", sql`${t.anchorDay} between 1 and 31`),
+    check("transaction_series_installments_check", sql`(${t.kind} = 'installment') = (${t.installments} is not null)`),
+    check(
+      "transaction_series_installment_shape_check",
+      sql`${t.kind} <> 'installment' or (${t.type} = 'expense' and ${t.frequency} = 'monthly' and ${t.endDate} is null and ${t.installments} between 2 and 72)`,
+    ),
+    index("transaction_series_due_idx").on(t.nextDate).where(sql`${t.status} = 'active'`),
+    index("transaction_series_user_idx").on(t.userId, t.status),
+    index("transaction_series_wallet_idx").on(t.walletId),
+  ],
+);
+
 export const transactions = pgTable(
   "transactions",
   {
@@ -128,6 +181,9 @@ export const transactions = pgTable(
     notes: bytea("notes"),
     categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
     archived: boolean("archived").notNull().default(false),
+    // Série que gerou a transação (R37, R62) e o número da ocorrência/parcela.
+    seriesId: uuid("series_id").references(() => transactionSeries.id, { onDelete: "set null" }),
+    seriesOccurrence: integer("series_occurrence"),
     // Exclusão lógica: preserva o registro para o "desfazer" (R49).
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -141,6 +197,10 @@ export const transactions = pgTable(
       .where(sql`${t.deletedAt} is null`),
     index("transactions_wallet_idx").on(t.walletId),
     index("transactions_user_category_idx").on(t.userId, t.categoryId),
+    // Uma ocorrência por número: gerar duas vezes é inofensivo (ADR-S2-002).
+    uniqueIndex("transactions_series_occurrence_uq")
+      .on(t.seriesId, t.seriesOccurrence)
+      .where(sql`${t.seriesId} is not null`),
   ],
 );
 

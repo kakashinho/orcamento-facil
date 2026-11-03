@@ -71,6 +71,13 @@
       "when": 1793675278462,
       "tag": "0009_wallet_min_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793675723629,
+      "tag": "0010_transaction_series",
+      "breakpoints": true
     }
   ]
 }

@@ -109,6 +109,7 @@ export const aad = {
   walletMinBalance: (walletId: string) => `wallet.min_balance:${walletId}`,
   transactionAmount: (transactionId: string) => `transaction.amount:${transactionId}`,
   transactionNotes: (transactionId: string) => `transaction.notes:${transactionId}`,
+  seriesAmount: (seriesId: string) => `series.amount:${seriesId}`,
   transferSourceAmount: (transferId: string) => `transfer.source_amount:${transferId}`,
   transferTargetAmount: (transferId: string) => `transfer.target_amount:${transferId}`,
   historySnapshot: (historyId: string) => `history.snapshot:${historyId}`,

@@ -30,16 +30,19 @@ import { UserService } from "./modules/auth/services/user.service.js";
 import { CategoryController } from "./modules/finance/controllers/category.controller.js";
 import { ExchangeRateController } from "./modules/finance/controllers/exchange-rate.controller.js";
 import { TagController } from "./modules/finance/controllers/tag.controller.js";
+import { SeriesController } from "./modules/finance/controllers/series.controller.js";
 import { TransactionController } from "./modules/finance/controllers/transaction.controller.js";
 import { TransferController } from "./modules/finance/controllers/transfer.controller.js";
 import { WalletController } from "./modules/finance/controllers/wallet.controller.js";
 import { CategoryRepository } from "./modules/finance/repositories/category.repository.js";
+import { SeriesRepository } from "./modules/finance/repositories/series.repository.js";
 import { TagRepository } from "./modules/finance/repositories/tag.repository.js";
 import { TransactionRepository } from "./modules/finance/repositories/transaction.repository.js";
 import { TransferRepository } from "./modules/finance/repositories/transfer.repository.js";
 import { WalletRepository } from "./modules/finance/repositories/wallet.repository.js";
 import { CategoryService } from "./modules/finance/services/category.service.js";
 import { ExchangeRateService } from "./modules/finance/services/exchange-rate.service.js";
+import { SeriesService } from "./modules/finance/services/series.service.js";
 import { TagService } from "./modules/finance/services/tag.service.js";
 import { TransactionService } from "./modules/finance/services/transaction.service.js";
 import { TransferService } from "./modules/finance/services/transfer.service.js";
@@ -107,6 +110,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     tags: new TagRepository(db),
     transactions: new TransactionRepository(db, cipher),
     transfers: new TransferRepository(db, cipher),
+    series: new SeriesRepository(db, cipher),
     history: new ActionHistoryRepository(db, cipher),
     systemSettings: new SystemSettingsRepository(db),
     appLogs: new AppLogRepository(db),
@@ -157,6 +161,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     wallets: repositories.wallets,
     transactions: repositories.transactions,
     transfers: repositories.transfers,
+    series: repositories.series,
     history,
     users,
     exchangeRates,
@@ -211,6 +216,20 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
+  // Recorrências e parcelamentos (R37, R62): cada ocorrência vira transação na data (ADR-S2-002).
+  const series = new SeriesService({
+    series: repositories.series,
+    transactions,
+    wallets,
+    categories,
+    tags,
+    history,
+    users,
+    runner,
+    clock,
+    eventLog,
+    events,
+  });
   // Cada ação desfazível é revertida pelo service dono do dado (R49).
   const undoHandlers: UndoHandlers = {
     "transaction.create": (tx, userId, p) => transactions.revertCreate(tx, userId, String(p.transactionId)),
@@ -222,6 +241,9 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       transactions.revertArchive(tx, userId, (p.transactionIds as string[] | undefined) ?? [], false),
     "transfer.create": (tx, userId, p) => transfers.revertCreate(tx, userId, String(p.transferId)),
     "transfer.delete": (tx, userId, p) => transfers.revertDelete(tx, userId, String(p.transferId)),
+    "series.create": (tx, userId, p) => series.revertCreate(tx, userId, p),
+    "series.update": (tx, userId, p) => series.revertChange(tx, userId, p),
+    "series.cancel": (tx, userId, p) => series.revertChange(tx, userId, p),
   };
   const undo = new UndoService(runner, history, undoHandlers, eventLog, events);
   // Caixa de avisos (R22, R47, R67, R74, R78, R68, R18, R34): os outros módulos chamam `notify`.
@@ -293,6 +315,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     users,
     exchangeRates,
     categories,
+    series,
     notifications,
     clock,
   });
@@ -313,6 +336,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   // Tarefas agendadas de negócio (ADR-S2-004): cada módulo fornece as suas; o system só agenda.
   const dailyReminders = new DailyReminderService({ notifications, devices: repositories.pushDevices, transactions, users });
   const jobTasks: JobTask[] = [
+    { name: "finance.series", run: (now) => series.generateAllDue(now) },
     { name: "notifications.daily-reminder", run: (now) => dailyReminders.run(now) },
     { name: "planning.goal-deadlines", run: (now) => goals.remindDeadlines(now) },
     { name: "notifications.push-retry", run: (now) => notifications.retryPending(now) },
@@ -338,6 +362,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     tag: new TagController(tags),
     transaction: new TransactionController(transactions),
     transfer: new TransferController(transfers),
+    series: new SeriesController(series),
     exchangeRate: new ExchangeRateController(exchangeRates),
     history: new HistoryController(history, undo),
     report: new ReportController(reports),
@@ -368,6 +393,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       tags,
       transactions,
       transfers,
+      series,
       exchangeRates,
       history,
       undo,

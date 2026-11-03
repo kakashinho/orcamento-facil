@@ -24,15 +24,15 @@ export interface AlertServiceDeps {
   clock: Clock;
 }
 
-/**
- * Alertas de risco (R22, R74, R67). Assina os eventos do finance e do planning (ADR-S2-003) e
- * reavalia os orçamentos do usuário depois de cada mudança. É idempotente: cada limiar tem uma
- * chave de deduplicação por orçamento e período, então reavaliar nunca repete o aviso (D-31).
- */
-/** Transação incomum (D-33): histórico mínimo, janela e limiares. */
+/** Transação incomum (D-33): histórico mínimo e janela. */
 const UNUSUAL_MIN_SAMPLES = 5;
 const UNUSUAL_WINDOW_DAYS = 90;
 
+/**
+ * Alertas de risco (R22, R74, R67, R78, R47) e meta atingida (R68). Assina os eventos do finance
+ * e do planning (ADR-S2-003) e reavalia o usuário depois de cada mudança. É idempotente: cada
+ * aviso tem uma chave de deduplicação, então reavaliar nunca repete a notificação (D-31).
+ */
 export class AlertService {
   constructor(private readonly deps: AlertServiceDeps) {}
 

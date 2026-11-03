@@ -9,10 +9,13 @@ export const HISTORY_ACTIONS = [
   "transaction.bulk_archive",
   "transfer.create",
   "transfer.delete",
+  "series.create",
+  "series.update",
+  "series.cancel",
 ] as const;
 
 export type HistoryAction = (typeof HISTORY_ACTIONS)[number];
-export type HistoryEntityType = "transaction" | "transfer";
+export type HistoryEntityType = "transaction" | "transfer" | "series";
 
 /** Texto da ação para a tela de histórico e o botão "Desfazer". */
 export const HISTORY_LABELS: Record<HistoryAction, string> = {
@@ -24,6 +27,9 @@ export const HISTORY_LABELS: Record<HistoryAction, string> = {
   "transaction.bulk_archive": "Transações antigas arquivadas",
   "transfer.create": "Transferência realizada",
   "transfer.delete": "Transferência excluída",
+  "series.create": "Recorrência ou parcelamento criado",
+  "series.update": "Recorrência ou parcelamento alterado",
+  "series.cancel": "Recorrência ou parcelamento cancelado",
 };
 
 export interface NewHistoryEntry {

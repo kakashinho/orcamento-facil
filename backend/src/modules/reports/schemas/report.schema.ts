@@ -99,6 +99,17 @@ export const monthIndicatorsQuerySchema = z.strictObject({
 });
 export type MonthIndicatorsQueryDto = z.infer<typeof monthIndicatorsQuerySchema>;
 
+export const projectionQuerySchema = z.strictObject({
+  months: z.coerce
+    .number()
+    .int("Use um número inteiro.")
+    .min(3, "O mínimo é 3 meses.")
+    .max(24, "O máximo é 24 meses.")
+    .default(6)
+    .meta({ description: "Meses projetados, a partir do atual (3 a 24, padrão 6)" }),
+});
+export type ProjectionQueryDto = z.infer<typeof projectionQuerySchema>;
+
 export const overviewQuerySchema = z.strictObject({
   month: isoMonth.optional().meta({ description: "Mês do resumo. Padrão: mês atual no fuso do usuário" }),
 });
@@ -268,6 +279,34 @@ export const monthIndicatorsResponseSchema = z
   .meta({ id: "MonthIndicators" });
 export type MonthIndicatorsResponseDto = z.infer<typeof monthIndicatorsResponseSchema>;
 
+export const projectionResponseSchema = z
+  .object({
+    currency: z.string().meta({ description: "Moeda principal" }),
+    startBalance: z.number().nullable().meta({ description: "Saldo total atual; null se faltar câmbio" }),
+    ratesStale: z.boolean(),
+    months: z.array(
+      z.object({
+        month: z.string(),
+        openingBalance: z.number().nullable(),
+        expectedIncome: z.number().nullable(),
+        expectedExpense: z.number().nullable(),
+        closingBalance: z.number().nullable(),
+        items: z.array(
+          z.object({
+            seriesId: responseId,
+            description: z.string(),
+            kind: z.enum(["recurring", "installment"]),
+            type: z.enum(["income", "expense"]),
+            date: responseDate,
+            amount: z.number().nullable().meta({ description: "Na moeda principal; null se faltar câmbio" }),
+          }),
+        ),
+      }),
+    ),
+  })
+  .meta({ id: "Projection" });
+export type ProjectionResponseDto = z.infer<typeof projectionResponseSchema>;
+
 // ---------- Schemas das rotas (validação + documentação) ----------
 
 export const reportRouteSchemas = {
@@ -328,6 +367,15 @@ export const reportRouteSchemas = {
     security: secured,
     querystring: balanceEvolutionQuerySchema,
     response: { 200: balanceEvolutionResponseSchema },
+  },
+  projection: {
+    tags: TAGS,
+    summary: "Saldo projetado dos próximos meses (R63)",
+    description:
+      "Parte do saldo total atual e soma as receitas e despesas fixas ainda não registradas: as próximas ocorrências das recorrências e as parcelas restantes.",
+    security: secured,
+    querystring: projectionQuerySchema,
+    response: { 200: projectionResponseSchema },
   },
   monthIndicators: {
     tags: TAGS,

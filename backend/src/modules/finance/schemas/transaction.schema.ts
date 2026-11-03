@@ -125,6 +125,16 @@ export const transactionResponseSchema = z
     category: z.object({ id: responseId, name: z.string(), predefined: z.boolean() }).nullable(),
     tags: z.array(z.object({ id: responseId, name: z.string() })),
     archived: z.boolean(),
+    series: z
+      .object({
+        id: responseId,
+        kind: z.enum(["recurring", "installment"]),
+        frequency: z.enum(["weekly", "monthly", "yearly"]),
+        occurrence: z.number().meta({ description: "Número da ocorrência ou parcela (1, 2, …)" }),
+        total: z.number().nullable().meta({ description: "Total de parcelas; null na recorrência" }),
+      })
+      .nullable()
+      .meta({ description: "Recorrência (R37) ou parcelamento (R62) que gerou a transação; null = avulsa" }),
     createdAt: responseTimestamp,
     updatedAt: responseTimestamp,
   })

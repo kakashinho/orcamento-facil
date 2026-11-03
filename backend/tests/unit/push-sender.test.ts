@@ -26,7 +26,8 @@ function fakeFetch(fcmStatus: number, fcmBody: unknown = {}) {
 
 describe("envio de push pelo FCM HTTP v1 (ADR-S2-008)", () => {
   it("troca um JWT RS256 da conta de serviço por token OAuth, guarda em cache e envia a mensagem", async () => {
-    const clock = new MutableClock(new Date("2026-11-03T12:00:00Z"));
+    const start = new Date("2026-11-03T12:00:00Z");
+    const clock = new MutableClock(start);
     const { impl, calls } = fakeFetch(200);
     const sender = new FcmPushSender(credentials, clock, impl);
 
@@ -36,7 +37,7 @@ describe("envio de push pelo FCM HTTP v1 (ADR-S2-008)", () => {
     expect(oauth).toHaveLength(1);
 
     const assertion = new URLSearchParams(String(oauth[0]!.init.body)).get("assertion")!;
-    const claims = createVerifier({ key: publicKey, algorithms: ["RS256"] })(assertion);
+    const claims = createVerifier({ key: publicKey, algorithms: ["RS256"], clockTimestamp: start.getTime() })(assertion);
     expect(claims).toMatchObject({
       iss: credentials.clientEmail,
       scope: "https://www.googleapis.com/auth/firebase.messaging",
