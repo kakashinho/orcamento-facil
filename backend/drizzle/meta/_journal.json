@@ -43,6 +43,13 @@
       "when": 1793674193119,
       "tag": "0005_budgets",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793674613337,
+      "tag": "0006_reduction_goals",
+      "breakpoints": true
     }
   ]
 }

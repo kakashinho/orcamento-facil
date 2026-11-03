@@ -50,8 +50,11 @@ import { UndoService } from "./modules/history/services/undo.service.js";
 import type { UndoHandlers } from "./modules/history/types/history.types.js";
 import { ReportController } from "./modules/reports/controllers/report.controller.js";
 import { BudgetController } from "./modules/planning/controllers/budget.controller.js";
+import { ReductionGoalController } from "./modules/planning/controllers/reduction-goal.controller.js";
 import { BudgetRepository } from "./modules/planning/repositories/budget.repository.js";
+import { ReductionGoalRepository } from "./modules/planning/repositories/reduction-goal.repository.js";
 import { BudgetService } from "./modules/planning/services/budget.service.js";
+import { ReductionGoalService } from "./modules/planning/services/reduction-goal.service.js";
 import { ReportService } from "./modules/reports/services/report.service.js";
 import { AdminController } from "./modules/system/controllers/admin.controller.js";
 import { SystemController } from "./modules/system/controllers/system.controller.js";
@@ -97,6 +100,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     health: new HealthRepository(db),
     jobLocks: new JobLockRepository(db),
     budgets: new BudgetRepository(db, cipher),
+    reductionGoals: new ReductionGoalRepository(db, cipher),
   };
 
   // ---------- infraestrutura ----------
@@ -214,6 +218,17 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
+  const reductionGoals = new ReductionGoalService({
+    goals: repositories.reductionGoals,
+    categories,
+    transactions,
+    wallets,
+    users,
+    exchangeRates,
+    runner,
+    clock,
+    events,
+  });
   const reports = new ReportService({ wallets, transactions, transfers, users, exchangeRates, categories, clock });
   const maintenance = new MaintenanceService(repositories.systemSettings, clock, eventLog, config.maintenanceForced);
   const appLogs = new AppLogService(repositories.appLogs, eventLog, config.housekeeping.logRetentionDays);
@@ -255,6 +270,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     history: new HistoryController(history, undo),
     report: new ReportController(reports),
     budget: new BudgetController(budgets),
+    reductionGoal: new ReductionGoalController(reductionGoals),
     system: new SystemController(health, maintenance, clock),
     admin: new AdminController(maintenance, appLogs, housekeeping, jobs),
   };
@@ -283,6 +299,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       undo,
       reports,
       budgets,
+      reductionGoals,
       maintenance,
       housekeeping,
       jobs,

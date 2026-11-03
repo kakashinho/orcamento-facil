@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
-import { char, check, index, pgTable, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { char, check, index, pgTable, smallint, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { categories } from "./finance.js";
 import { bytea } from "./types.js";
 import { users } from "./users.js";
 
-// Planejamento financeiro: orçamentos e limites diários por categoria (R21, R74, R23).
+// Planejamento financeiro: orçamentos e limites diários por categoria (R21, R74, R23) e metas de
+// redução de gastos (R67).
 // Valores cifrados na aplicação (R81), como no finance.
 
 const MONTH_PATTERN = "^[0-9]{4}-(0[1-9]|1[0-2])$";
@@ -42,5 +43,35 @@ export const budgets = pgTable(
     ),
     uniqueIndex("budgets_active_uq").on(t.userId, t.categoryId, t.period).where(sql`${t.validTo} is null`),
     index("budgets_user_idx").on(t.userId, t.validFrom),
+  ],
+);
+
+/**
+ * Meta de redução de gastos numa categoria (R67). A base (média mensal dos 3 meses anteriores ao
+ * início) é calculada uma vez e guardada cifrada; o alvo do mês sai dela e do percentual.
+ */
+export const reductionGoals = pgTable(
+  "reduction_goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    percent: smallint("percent").notNull(),
+    baselineAmount: bytea("baseline_amount").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    baselineMonths: smallint("baseline_months").notNull().default(3),
+    startMonth: char("start_month", { length: 7 }).notNull(),
+    endMonth: char("end_month", { length: 7 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("reduction_goals_percent_check", sql`${t.percent} between 1 and 90`),
+    check("reduction_goals_months_check", sql`${t.endMonth} is null or ${t.endMonth} >= ${t.startMonth}`),
+    uniqueIndex("reduction_goals_active_uq").on(t.userId, t.categoryId).where(sql`${t.endMonth} is null`),
   ],
 );

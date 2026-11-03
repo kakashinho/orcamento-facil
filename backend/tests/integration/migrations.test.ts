@@ -32,6 +32,7 @@ describe("migrations oficiais", () => {
       "categories",
       "category_preferences",
       "password_reset_tokens",
+      "reduction_goals",
       "sessions",
       "system_settings",
       "tags",
@@ -63,7 +64,10 @@ describe("migrations oficiais", () => {
   });
 
   it("guardam cifrados (BYTEA) os dados novos da Sprint 2 (R81)", async () => {
-    const encrypted = [["transactions", "notes"]];
+    const encrypted = [
+      ["transactions", "notes"],
+      ["reduction_goals", "baseline_amount"],
+    ];
     const { rows } = await client.query<{ table_name: string; column_name: string; data_type: string }>(
       "select table_name, column_name, data_type from information_schema.columns where table_schema = 'public'",
     );
