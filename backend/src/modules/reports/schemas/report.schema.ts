@@ -211,6 +211,7 @@ export const overviewResponseSchema = z
     monthSummary: transactionSummaryResponseSchema,
     topExpenseCategories: z.array(categoryTotalsSchema).meta({ description: "Até 5 categorias com mais despesas no mês" }),
     recentTransactions: z.array(transactionResponseSchema).meta({ description: "Últimas 5 transações da lista principal" }),
+    unreadNotifications: z.number().meta({ description: "Notificações não lidas (sino do app)" }),
   })
   .meta({ id: "Overview" });
 export type OverviewResponseDto = z.infer<typeof overviewResponseSchema>;

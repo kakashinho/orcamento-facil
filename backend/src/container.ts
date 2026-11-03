@@ -49,6 +49,11 @@ import { ActionHistoryService } from "./modules/history/services/action-history.
 import { UndoService } from "./modules/history/services/undo.service.js";
 import type { UndoHandlers } from "./modules/history/types/history.types.js";
 import { ReportController } from "./modules/reports/controllers/report.controller.js";
+import { NotificationController } from "./modules/notifications/controllers/notification.controller.js";
+import { NotificationRepository } from "./modules/notifications/repositories/notification.repository.js";
+import { NotificationSettingsRepository } from "./modules/notifications/repositories/notification-settings.repository.js";
+import { PushDeviceRepository } from "./modules/notifications/repositories/push-device.repository.js";
+import { NotificationService } from "./modules/notifications/services/notification.service.js";
 import { BudgetController } from "./modules/planning/controllers/budget.controller.js";
 import { ReductionGoalController } from "./modules/planning/controllers/reduction-goal.controller.js";
 import { BudgetRepository } from "./modules/planning/repositories/budget.repository.js";
@@ -101,6 +106,9 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     jobLocks: new JobLockRepository(db),
     budgets: new BudgetRepository(db, cipher),
     reductionGoals: new ReductionGoalRepository(db, cipher),
+    notifications: new NotificationRepository(db),
+    notificationSettings: new NotificationSettingsRepository(db),
+    pushDevices: new PushDeviceRepository(db),
   };
 
   // ---------- infraestrutura ----------
@@ -206,6 +214,13 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     "transfer.delete": (tx, userId, p) => transfers.revertDelete(tx, userId, String(p.transferId)),
   };
   const undo = new UndoService(runner, history, undoHandlers, eventLog, events);
+  // Caixa de avisos (R22, R47, R67, R74, R78, R68, R18, R34): os outros módulos chamam `notify`.
+  const notifications = new NotificationService({
+    notifications: repositories.notifications,
+    settings: repositories.notificationSettings,
+    devices: repositories.pushDevices,
+    clock,
+  });
   // Planejamento (R21, R74, R23): usa só os services públicos do finance e do auth.
   const budgets = new BudgetService({
     budgets: repositories.budgets,
@@ -229,7 +244,16 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
-  const reports = new ReportService({ wallets, transactions, transfers, users, exchangeRates, categories, clock });
+  const reports = new ReportService({
+    wallets,
+    transactions,
+    transfers,
+    users,
+    exchangeRates,
+    categories,
+    notifications,
+    clock,
+  });
   const maintenance = new MaintenanceService(repositories.systemSettings, clock, eventLog, config.maintenanceForced);
   const appLogs = new AppLogService(repositories.appLogs, eventLog, config.housekeeping.logRetentionDays);
   const health = new HealthService(repositories.health, logger);
@@ -239,6 +263,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       { name: "auth", run: (now) => auth.purgeExpired(now) },
       { name: "history", run: (now) => history.purgeExpired(now) },
       { name: "logs", run: (now) => appLogs.purgeExpired(now) },
+      { name: "notifications", run: (now) => notifications.purgeExpired(now) },
     ],
     clock,
     eventLog,
@@ -271,6 +296,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     report: new ReportController(reports),
     budget: new BudgetController(budgets),
     reductionGoal: new ReductionGoalController(reductionGoals),
+    notification: new NotificationController(notifications),
     system: new SystemController(health, maintenance, clock),
     admin: new AdminController(maintenance, appLogs, housekeeping, jobs),
   };
@@ -300,6 +326,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
       reports,
       budgets,
       reductionGoals,
+      notifications,
       maintenance,
       housekeeping,
       jobs,

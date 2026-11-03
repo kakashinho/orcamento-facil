@@ -4,3 +4,4 @@ export * from "./schema/finance.js";
 export * from "./schema/history.js";
 export * from "./schema/system.js";
 export * from "./schema/planning.js";
+export * from "./schema/notifications.js";

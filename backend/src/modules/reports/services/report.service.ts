@@ -11,6 +11,7 @@ import {
 import { fromCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
 import type { CategoryService } from "../../finance/services/category.service.js";
+import type { NotificationService } from "../../notifications/services/notification.service.js";
 import type { ExchangeRateService } from "../../finance/services/exchange-rate.service.js";
 import type { TransactionService } from "../../finance/services/transaction.service.js";
 import type { TransferService } from "../../finance/services/transfer.service.js";
@@ -43,6 +44,7 @@ export interface ReportServiceDeps {
   users: UserService;
   exchangeRates: ExchangeRateService;
   categories: CategoryService;
+  notifications: NotificationService;
   clock: Clock;
 }
 
@@ -84,11 +86,12 @@ export class ReportService {
     const { timezone } = await users.getPreferences(userId);
     const month = query.month ?? monthOf(todayInTimeZone(clock.now(), timezone));
     const range = monthRange(month);
-    const [walletSummary, monthSummary, expenses, recent] = await Promise.all([
+    const [walletSummary, monthSummary, expenses, recent, unreadNotifications] = await Promise.all([
       wallets.summary(userId),
       transactions.summary(userId, { month, archived: "all" }),
       this.byCategory(userId, { from: range.from, to: range.to, type: "expense", includeHidden: "false" }),
       transactions.list(userId, { sort: "date", order: "desc", limit: OVERVIEW_RECENT_TRANSACTIONS, archived: "false" }),
+      this.deps.notifications.countUnread(userId),
     ]);
     return {
       month,
@@ -96,6 +99,7 @@ export class ReportService {
       monthSummary,
       topExpenseCategories: expenses.categories.slice(0, OVERVIEW_TOP_CATEGORIES),
       recentTransactions: recent.data,
+      unreadNotifications,
     };
   }
 

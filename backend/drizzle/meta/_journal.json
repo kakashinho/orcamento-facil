@@ -50,6 +50,13 @@
       "when": 1793674613337,
       "tag": "0006_reduction_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793674832783,
+      "tag": "0007_notifications",
+      "breakpoints": true
     }
   ]
 }
