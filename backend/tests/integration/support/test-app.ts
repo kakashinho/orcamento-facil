@@ -4,6 +4,7 @@ import { buildApp } from "../../../src/app.js";
 import { type Container, createContainer } from "../../../src/container.js";
 import type { App } from "../../../src/infrastructure/http/types.js";
 import { MemoryMailer } from "../../../src/infrastructure/mail/mailer.js";
+import { FakePushSender } from "../../../src/infrastructure/push/push-sender.js";
 import { FakeExchangeRateProvider, MutableClock, testConfig } from "../../helpers/test-config.js";
 
 export const PASSWORD = "Senha@Forte123";
@@ -17,6 +18,7 @@ export interface TestContext {
   mailer: MemoryMailer;
   rates: FakeExchangeRateProvider;
   clock: MutableClock;
+  push: FakePushSender;
   close(): Promise<void>;
 }
 
@@ -24,7 +26,8 @@ export async function createTestApp(configOverrides: Record<string, string> = {}
   const mailer = new MemoryMailer();
   const rates = new FakeExchangeRateProvider();
   const clock = new MutableClock();
-  const container = createContainer(testConfig(configOverrides), { mailer, exchangeRateProvider: rates, clock });
+  const push = new FakePushSender();
+  const container = createContainer(testConfig(configOverrides), { mailer, exchangeRateProvider: rates, clock, pushSender: push });
   const app = await buildApp(container);
   await app.ready();
   return {
@@ -33,6 +36,7 @@ export async function createTestApp(configOverrides: Record<string, string> = {}
     mailer,
     rates,
     clock,
+    push,
     async close() {
       await app.close();
       await container.close();

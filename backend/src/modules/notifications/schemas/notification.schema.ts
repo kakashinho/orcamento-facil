@@ -31,6 +31,14 @@ export const updateNotificationSettingsRequestSchema = z
   .refine((body) => Object.keys(body).length > 0, { message: "Informe ao menos uma preferência." });
 export type UpdateNotificationSettingsRequestDto = z.infer<typeof updateNotificationSettingsRequestSchema>;
 
+export const registerDeviceRequestSchema = z.strictObject({
+  token: z.string().trim().min(1, "Informe o token do aparelho.").max(4096, "Token inválido.").meta({
+    description: "Token do Firebase Cloud Messaging obtido pelo app (getDevicePushTokenAsync)",
+  }),
+  deviceName: z.string().trim().max(80, "Use no máximo 80 caracteres.").optional().meta({ example: "Galaxy A54" }),
+});
+export type RegisterDeviceRequestDto = z.infer<typeof registerDeviceRequestSchema>;
+
 // ---------- Response DTOs ----------
 
 export const notificationResponseSchema = z
@@ -59,6 +67,8 @@ export type NotificationPageResponseDto = z.infer<typeof notificationPageRespons
 
 export const unreadCountResponseSchema = z.object({ count: z.number() });
 export const readAllResponseSchema = z.object({ updated: z.number() });
+
+export const registerDeviceResponseSchema = z.object({ id: responseId });
 
 export const notificationSettingsResponseSchema = z
   .object({
@@ -106,6 +116,20 @@ export const notificationRouteSchemas = {
     summary: "Preferências de aviso (R18, R34)",
     security: secured,
     response: { 200: notificationSettingsResponseSchema },
+  },
+  registerDevice: {
+    tags: TAGS,
+    summary: "Registrar o aparelho para receber push (R18)",
+    description: "Idempotente pelo token; um token já registrado por outra conta passa para esta (outro login no aparelho).",
+    security: secured,
+    body: registerDeviceRequestSchema,
+    response: { 201: registerDeviceResponseSchema },
+  },
+  unregisterDevice: {
+    tags: TAGS,
+    summary: "Parar de receber push neste aparelho (logout)",
+    security: secured,
+    params: idParams,
   },
   updateSettings: {
     tags: TAGS,

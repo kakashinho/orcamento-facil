@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 
 const booleanFromEnv = z
@@ -72,6 +73,12 @@ const envSchema = z.object({
 
   // Tarefas agendadas de negócio: ocorrências de séries, lembretes, reenvio de push (0 desliga).
   JOBS_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
+
+  // Push pelo Firebase Cloud Messaging (R18). Sem nada disso, o push é só registrado no log.
+  FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
+  FCM_PROJECT_ID: z.string().optional(),
+  FCM_CLIENT_EMAIL: z.string().optional(),
+  FCM_PRIVATE_KEY: z.string().optional(),
 });
 
 export interface AppConfig {
@@ -117,6 +124,34 @@ export interface AppConfig {
     /** 0 desliga a execução automática (POST /api/admin/jobs/run continua disponível). */
     intervalMinutes: number;
   };
+  /** Credencial da conta de serviço do Firebase; ausente = push só registrado no log. */
+  push: { fcm?: { projectId: string; clientEmail: string; privateKey: string } };
+}
+
+/**
+ * Credencial do FCM: arquivo JSON da conta de serviço (FCM_SERVICE_ACCOUNT_FILE) ou as três
+ * variáveis. A chave nunca vai para o git nem para o log.
+ */
+function loadFcmCredentials(env: z.infer<typeof envSchema>): AppConfig["push"]["fcm"] {
+  if (env.FCM_SERVICE_ACCOUNT_FILE) {
+    let account: { project_id?: string; client_email?: string; private_key?: string };
+    try {
+      account = JSON.parse(readFileSync(env.FCM_SERVICE_ACCOUNT_FILE, "utf8"));
+    } catch {
+      throw new Error("FCM_SERVICE_ACCOUNT_FILE inválido: não foi possível ler o JSON da conta de serviço");
+    }
+    if (!account.project_id || !account.client_email || !account.private_key) {
+      throw new Error("FCM_SERVICE_ACCOUNT_FILE inválido: faltam project_id, client_email ou private_key");
+    }
+    return { projectId: account.project_id, clientEmail: account.client_email, privateKey: account.private_key };
+  }
+  const parts = [env.FCM_PROJECT_ID, env.FCM_CLIENT_EMAIL, env.FCM_PRIVATE_KEY];
+  if (parts.every((part) => !part)) return undefined;
+  if (parts.some((part) => !part)) {
+    throw new Error("Configuração do FCM incompleta: informe FCM_PROJECT_ID, FCM_CLIENT_EMAIL e FCM_PRIVATE_KEY (ou FCM_SERVICE_ACCOUNT_FILE)");
+  }
+  // No .env a chave costuma vir com "\n" no lugar das quebras de linha.
+  return { projectId: env.FCM_PROJECT_ID!, clientEmail: env.FCM_CLIENT_EMAIL!, privateKey: env.FCM_PRIVATE_KEY!.replace(/\\n/g, "\n") };
 }
 
 function parsePreviousKeys(raw: string): Map<number, Buffer> {
@@ -204,5 +239,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       logRetentionDays: env.LOG_RETENTION_DAYS,
     },
     jobs: { intervalMinutes: env.JOBS_INTERVAL_MINUTES },
+    push: (() => {
+      const fcm = loadFcmCredentials(env);
+      return fcm ? { fcm } : {};
+    })(),
   };
 }

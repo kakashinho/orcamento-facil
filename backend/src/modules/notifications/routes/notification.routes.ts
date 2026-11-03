@@ -13,6 +13,8 @@ export function notificationRoutes(controller: NotificationController, guards: H
     app.post("/read-all", { schema: schemas.markAllRead }, controller.markAllRead);
     app.get("/settings", { schema: schemas.getSettings }, controller.getSettings);
     app.patch("/settings", { schema: schemas.updateSettings }, controller.updateSettings);
+    app.post("/devices", { schema: schemas.registerDevice }, controller.registerDevice);
+    app.delete("/devices/:id", { schema: schemas.unregisterDevice }, controller.unregisterDevice);
     app.post("/:id/read", { schema: schemas.markRead }, controller.markRead);
   };
 }

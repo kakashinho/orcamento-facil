@@ -15,6 +15,7 @@ import type { HttpGuards } from "./infrastructure/http/types.js";
 import { EventLogger } from "./infrastructure/logging/event-logger.js";
 import { createLogger, type Logger } from "./infrastructure/logging/logger.js";
 import { EtherealMailer, LogMailer, type Mailer, SmtpMailer } from "./infrastructure/mail/mailer.js";
+import { FcmPushSender, LogPushSender, type PushSender } from "./infrastructure/push/push-sender.js";
 import { AuthController } from "./modules/auth/controllers/auth.controller.js";
 import { BiometricController } from "./modules/auth/controllers/biometric.controller.js";
 import { ResetPasswordController } from "./modules/auth/controllers/reset-password.controller.js";
@@ -84,6 +85,7 @@ export interface ContainerOverrides {
   mailer?: Mailer;
   exchangeRateProvider?: ExchangeRateProvider;
   logger?: Logger;
+  pushSender?: PushSender;
 }
 
 export function createContainer(config: AppConfig, overrides: ContainerOverrides = {}) {
@@ -222,10 +224,15 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   };
   const undo = new UndoService(runner, history, undoHandlers, eventLog, events);
   // Caixa de avisos (R22, R47, R67, R74, R78, R68, R18, R34): os outros módulos chamam `notify`.
+  // Push (R18, ADR-S2-008): FCM com a conta de serviço; sem credencial, só registra no log.
+  const pushSender =
+    overrides.pushSender ?? (config.push.fcm ? new FcmPushSender(config.push.fcm, clock) : new LogPushSender(logger));
   const notifications = new NotificationService({
     notifications: repositories.notifications,
     settings: repositories.notificationSettings,
     devices: repositories.pushDevices,
+    pushSender,
+    eventLog,
     clock,
   });
   // Planejamento (R21, R74, R23): usa só os services públicos do finance e do auth.
@@ -303,7 +310,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     eventLog,
   );
   // Tarefas agendadas de negócio (ADR-S2-004): cada módulo fornece as suas; o system só agenda.
-  const jobTasks: JobTask[] = [];
+  const jobTasks: JobTask[] = [{ name: "notifications.push-retry", run: (now) => notifications.retryPending(now) }];
   const jobs = new JobScheduler(jobTasks, repositories.jobLocks, maintenance, clock, eventLog);
 
   // ---------- HTTP: guards e controllers ----------
@@ -372,6 +379,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     guards,
     async close() {
       await events.idle();
+      await notifications.flush();
       await eventLog.flush();
       await pool.end();
     },
