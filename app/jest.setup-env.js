@@ -69,11 +69,21 @@ jest.mock("expo-speech", () => ({ speak: jest.fn(), stop: jest.fn() }));
 jest.mock("expo-file-system", () => {
   class File {
     constructor(dir, name) {
+      this.name = name;
       this.uri = `file:///cache/${name}`;
     }
+    delete() {}
   }
   File.downloadFileAsync = jest.fn(async (_url, destination) => destination);
-  return { File, Paths: { cache: "cache" } };
+  class Directory {
+    constructor(entries = []) {
+      this.entries = entries;
+    }
+    list() {
+      return this.entries;
+    }
+  }
+  return { File, Directory, Paths: { cache: new Directory() } };
 });
 
 jest.mock("expo-sharing", () => ({

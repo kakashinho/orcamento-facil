@@ -1,4 +1,5 @@
 import { currentApiUrl } from "@/core/config/server-address";
+import { purgeTempFiles } from "@/core/files/temp-files";
 import { createHttpClient } from "@/core/http/http-client";
 import { logger } from "@/core/logging/logger";
 import { createQueryClient } from "@/core/query/query-client";
@@ -37,6 +38,10 @@ export const session = createSessionManager({
   fetchMe: () => api.users.me(),
   store: useSessionStore,
   logger,
-  onSignedOut: () => queryClient.clear(),
+  onSignedOut: () => {
+    queryClient.clear();
+    // Anexos, extratos e fotos abertos ficam sem cifra no cache: saem junto com a sessão (R81).
+    purgeTempFiles();
+  },
 });
 sessionRef = session;

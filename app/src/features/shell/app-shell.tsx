@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router/tabs";
 import { useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { purgeTempFiles } from "@/core/files/temp-files";
 import { useResponsiveLayout, useTheme } from "@/ui";
 import { useFeedback } from "../feedback/feedback-provider";
 import { PushNotifications } from "../notifications/push-notifications";
@@ -14,6 +15,11 @@ export function AppShell() {
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const { setBottomOffset } = useFeedback();
+
+  // Sobras de uso anterior (anexos, extratos e fotos sem cifra no cache) saem ao abrir o app logado (R81).
+  useEffect(() => {
+    purgeTempFiles();
+  }, []);
 
   useEffect(() => {
     const bottomInset = Math.max(insets.bottom, MIN_BOTTOM_INSET);
