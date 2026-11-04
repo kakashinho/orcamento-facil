@@ -68,7 +68,7 @@ npm run demo:seed -- --reset      # recria a conta demo@orcamentofacil.app (senh
 
 Opções: `--api <url>` (padrão `http://localhost`, ou `DEMO_API_URL`), `--db <url>` (padrão o PostgreSQL do
 compose, ou `DATABASE_URL`; usada só para apagar a conta no `--reset` e para recuar a vigência dos
-orçamentos, que a API não permite), `--out <pasta>` (os 3 CSVs de apoio: transações, planejamento e avisos;
+orçamentos, que a API não permite), `--out <pasta>` (os 2 CSVs de apoio: transações e planejamento;
 padrão `../apresentacao/csv`), `--only-csv` (só regera os CSVs do que já está no banco) e `--skip-jobs` (não roda as tarefas agendadas). Os valores são
 gerados de forma determinística, relativos à data de hoje; rode `--reset` de novo para reposicionar o
 "mês corrente" no dia da apresentação. O script também cria a conta de administração

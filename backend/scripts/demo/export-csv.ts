@@ -1,6 +1,6 @@
 /**
- * CSVs de apoio da demonstração, gerados do que a API devolve (ou seja, do próprio banco). São só três
- * arquivos — transações, planejamento e avisos — para abrir no Excel em português: separador ";", vírgula
+ * CSVs de apoio da demonstração, gerados do que a API devolve (ou seja, do próprio banco). São só dois
+ * arquivos — transações e planejamento — para abrir no Excel em português: separador ";", vírgula
  * decimal, datas AAAA-MM-DD e BOM UTF-8. Não são exigência de nenhum requisito.
  */
 import { writeFileSync } from "node:fs";
@@ -23,18 +23,6 @@ function write(dir: string, name: string, header: string[], rows: Cell[][]): voi
   console.log(`  ${name} (${rows.length} linha${rows.length === 1 ? "" : "s"})`);
 }
 
-const KIND_LABEL: Record<string, string> = {
-  budget_warning: "Orçamento em atenção",
-  budget_exceeded: "Orçamento estourado",
-  daily_limit_exceeded: "Limite diário estourado",
-  reduction_exceeded: "Meta de redução estourada",
-  unusual_transaction: "Transação incomum",
-  low_balance: "Saldo abaixo do mínimo",
-  goal_achieved: "Meta atingida",
-  goal_deadline: "Prazo da meta",
-  daily_reminder: "Lembrete diário",
-  bill_reminder: "Lembrete de conta",
-};
 const FREQUENCY: Record<string, string> = { weekly: "Semanal", monthly: "Mensal", yearly: "Anual" };
 const BUDGET_STATE: Record<string, string> = { ok: "Dentro", warning: "Em atenção", exceeded: "Estourado" };
 const SERIES_STATUS: Record<string, string> = { active: "Ativa", ended: "Encerrada", cancelled: "Cancelada" };
@@ -107,9 +95,4 @@ export async function exportCsv(
   for (const r of reminders) planning.push(["Lembrete de conta", r.title, "", r.amount, null, null, r.active ? "Ativo" : "Pausado", `${FREQUENCY[r.frequency] ?? r.frequency} · vence em ${r.nextDueDate}`]);
 
   write(outDir, "02-planejamento.csv", ["Tipo", "Nome", "Categoria", "Limite ou valor de referência", "Valor atual", "Percentual", "Situação", "Detalhe"], planning);
-
-  // ------------------------------------------------------------------ 3. avisos
-  const notifications = await api.listAll<{ kind: string; title: string; body: string; readAt: string | null; createdAt: string }>("/api/notifications", {}, 50);
-  write(outDir, "03-avisos.csv", ["Quando", "Tipo", "Título", "Texto (os avisos não levam valores em dinheiro)", "Lido"],
-    notifications.map((n) => [n.createdAt.replace("T", " ").slice(0, 19), KIND_LABEL[n.kind] ?? n.kind, n.title, n.body, n.readAt !== null]));
 }
