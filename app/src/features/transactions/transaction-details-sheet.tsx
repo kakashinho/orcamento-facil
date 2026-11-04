@@ -120,7 +120,7 @@ function DetailsContent({
   /** Vínculo criado: celebra só quando este vínculo completou a meta (R68). */
   const contributed = (result: ContributionResult) => {
     setContributing(null);
-    if (result.achievedNow) celebrate(`Meta “${result.goal.name}” atingida`);
+    if (result.achievedNow) celebrate(`Meta “${result.goal.name}” atingida`, "Parabéns pela conquista!");
     else showSnackbar(`Receita destinada à meta “${result.goal.name}”`);
   };
 

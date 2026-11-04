@@ -223,6 +223,8 @@ describe("destinar a receita a uma meta no formulário (R17, R68)", () => {
     expect(api.lastCall("POST", "/api/goals/:id/contributions")!.body).toEqual({ transactionId: salary().id });
     expect(api.lastCall("POST", "/api/transactions")!.body).not.toHaveProperty("goalId");
     expect(await screen.findByText("Meta “Viagem” atingida!")).toBeOnTheScreen();
+    expect(screen.getByText("Parabéns pela conquista!")).toBeOnTheScreen();
+    expect(screen.queryByText("Saldos atualizados")).toBeNull();
   });
 
   it("envia o valor parcial e só celebra a meta com `achievedNow`", async () => {

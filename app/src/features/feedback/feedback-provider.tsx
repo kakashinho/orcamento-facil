@@ -16,7 +16,8 @@ interface FeedbackApi {
   showSnackbar: (options: SnackbarOptions | string) => void;
   hideSnackbar: () => void;
   /** Confirmação animada (R77). */
-  celebrate: (message: string) => void;
+  /** Confirmação animada; `subtitle` troca o texto de apoio (padrão: "Saldos atualizados"). */
+  celebrate: (message: string, subtitle?: string) => void;
   /** Distância do snackbar até a borda inferior (acima da barra de navegação). */
   setBottomOffset: (offset: number) => void;
 }
@@ -31,7 +32,7 @@ interface ActiveSnackbar extends SnackbarOptions {
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const [snackbar, setSnackbar] = useState<ActiveSnackbar | null>(null);
-  const [celebration, setCelebration] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<{ message: string; subtitle?: string } | null>(null);
   const [bottomOffset, setBottomOffset] = useState(0);
   const counter = useRef(0);
 
@@ -50,7 +51,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [snackbar]);
 
-  const celebrate = useCallback((message: string) => setCelebration(message), []);
+  const celebrate = useCallback((message: string, subtitle?: string) => setCelebration({ message, subtitle }), []);
   const endCelebration = useCallback(() => setCelebration(null), []);
 
   const value = useMemo<FeedbackApi>(
@@ -77,7 +78,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           </View>
         </View>
       ) : null}
-      {celebration ? <SuccessOverlay message={celebration} onDone={endCelebration} /> : null}
+      {celebration ? (
+        <SuccessOverlay message={celebration.message} subtitle={celebration.subtitle} onDone={endCelebration} />
+      ) : null}
     </FeedbackContext.Provider>
   );
 }

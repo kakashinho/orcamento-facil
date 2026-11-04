@@ -288,6 +288,15 @@ describe("aba Planejamento", () => {
     expect(mockRouter.setParams).toHaveBeenCalledWith({ section: undefined });
   });
 
+  it("o aviso de meta abre o detalhe da meta pelo goalId e limpa os parâmetros", async () => {
+    mockParams = { section: "goals", goalId: "g1" };
+    const api = planningApi();
+    await renderWithProviders(<PlanningScreen />);
+    expect(await screen.findByTestId("goal-details")).toBeOnTheScreen();
+    await waitFor(() => expect(api.lastCall("GET", "/api/goals/:id")!.path).toBe("/api/goals/g1"));
+    expect(mockRouter.setParams).toHaveBeenCalledWith({ section: undefined, goalId: undefined });
+  });
+
   it("interpreta o parâmetro da seção", () => {
     expect(parseSection("accounts")).toBe("accounts");
     expect(parseSection(["budgets"])).toBe("budgets");

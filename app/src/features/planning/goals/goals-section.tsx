@@ -25,7 +25,7 @@ const EMPTY: Record<GoalStatus, { title: string; description: string }> = {
  * Planejamento › Metas: metas de economia (R15) com progresso (R16), filtro Ativas · Atingidas ·
  * Canceladas e o detalhe com as receitas vinculadas (R17).
  */
-export function GoalsSection() {
+export function GoalsSection({ openGoalId = null }: { openGoalId?: string | null }) {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
   const maintenance = useMaintenance();
@@ -38,6 +38,12 @@ export function GoalsSection() {
   });
   // O id fica guardado ao fechar: a folha mostra a meta até o fim da animação de saída.
   const [details, setDetails] = useState<{ id: string | null; open: boolean }>({ id: null, open: false });
+  // Pedido de um aviso: abre o detalhe da meta (qualquer status) uma única vez por id.
+  const [openedFromRoute, setOpenedFromRoute] = useState<string | null>(null);
+  if (openGoalId && openGoalId !== openedFromRoute) {
+    setOpenedFromRoute(openGoalId);
+    setDetails({ id: openGoalId, open: true });
+  }
   useScreenMetric("planning.goals", !!goals.data);
 
   const openForm = (editing: Goal | null) => {

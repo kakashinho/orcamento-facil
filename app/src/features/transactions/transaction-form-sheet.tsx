@@ -198,7 +198,7 @@ export function TransactionFormSheet({
       {
         onSuccess: (result) => {
           onClose();
-          if (result.achievedNow) celebrate(`Meta “${result.goal.name}” atingida`);
+          if (result.achievedNow) celebrate(`Meta “${result.goal.name}” atingida`, "Parabéns pela conquista!");
           else {
             celebrate(message);
             showSnackbar(`Receita destinada à meta “${result.goal.name}”`);

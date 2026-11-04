@@ -27,8 +27,10 @@ export function parseSection(value: string | string[] | undefined): PlanningSect
 export function PlanningScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ section?: string }>();
+  const params = useLocalSearchParams<{ section?: string; goalId?: string }>();
   const requested = parseSection(params.section);
+  // O aviso de meta atingida/perto da data traz o id da meta: o detalhe abre direto.
+  const goalId = typeof params.goalId === "string" && params.goalId ? params.goalId : null;
   const [section, setSection] = useState<PlanningSection>(requested ?? "budgets");
   // Cada novo pedido da rota troca a seção (padrão "valor da renderização anterior" do React).
   const [handled, setHandled] = useState<PlanningSection | null>(requested);
@@ -37,10 +39,10 @@ export function PlanningScreen() {
     if (requested) setSection(requested);
   }
 
-  // Limpa o parâmetro já atendido: o próximo aviso com a mesma seção volta a funcionar.
+  // Limpa os parâmetros já atendidos: o próximo aviso com a mesma seção volta a funcionar.
   useEffect(() => {
-    if (requested) router.setParams({ section: undefined });
-  }, [requested, router]);
+    if (requested || goalId) router.setParams({ section: undefined, goalId: undefined });
+  }, [requested, goalId, router]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]} testID="planning-screen">
@@ -57,7 +59,7 @@ export function PlanningScreen() {
       </ContentContainer>
       <View style={styles.body}>
         {section === "budgets" ? <BudgetsSection /> : null}
-        {section === "goals" ? <GoalsSection /> : null}
+        {section === "goals" ? <GoalsSection openGoalId={goalId} /> : null}
         {section === "accounts" ? <AccountsSection /> : null}
       </View>
     </View>
