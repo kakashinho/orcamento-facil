@@ -137,6 +137,8 @@ export function LinkIncomeDialog({
                   setAmountText(text);
                 }}
                 keyboardType="decimal-pad"
+                returnKeyType="done"
+                onSubmitEditing={submit}
                 placeholder="Todo o disponível"
                 helper="Deixe vazio para destinar todo o valor disponível da receita."
                 error={amountError}

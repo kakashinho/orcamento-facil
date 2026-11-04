@@ -704,6 +704,21 @@ describe("metas de economia (R15, R16, R17)", () => {
       expect(screen.queryByTestId("link-income-dialog")).toBeNull();
     });
 
+    it("o botão ✓ do teclado confirma o valor sem precisar tocar em Vincular", async () => {
+      const api = planningApi().on("POST", "/api/goals/:id/contributions", { status: 201, body: result(false, 300) });
+      const dialog = await openLinkDialog(api);
+      await fireEvent.press(await within(dialog).findByRole("radio", { name: /^Bônus/ }));
+      const field = within(dialog).getByLabelText("Valor para a meta");
+      await fireEvent.changeText(field, "300");
+      await fireEvent(field, "submitEditing");
+      await waitFor(() =>
+        expect(api.lastCall("POST", "/api/goals/:id/contributions")!.body).toEqual({
+          transactionId: "t2",
+          amount: 300,
+        }),
+      );
+    });
+
     it("sem valor usa todo o disponível e celebra quando o vínculo completa a meta", async () => {
       const api = planningApi().on("POST", "/api/goals/:id/contributions", { status: 201, body: result(true, 800) });
       const dialog = await openLinkDialog(api);
