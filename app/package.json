@@ -65,5 +65,5 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx,js}\" \"*.{js,ts,tsx}\""
   },
   "private": true,
-  "description": "Aplicativo Android do Orçamento Fácil (React Native + Expo) — Sprint 1"
+  "description": "Aplicativo Android do Orçamento Fácil (React Native + Expo) — Sprints 1 e 2"
 }
