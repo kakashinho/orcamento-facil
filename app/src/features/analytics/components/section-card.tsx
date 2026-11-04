@@ -25,7 +25,8 @@ export function SectionCard({
   loading?: boolean;
   error?: unknown;
   onRetry?: () => void;
-  children?: ReactNode;
+  /** Conteúdo; como função, recebe `true` durante a captura da imagem (para mostrar tudo, sem rolagem). */
+  children?: ReactNode | ((capturing: boolean) => ReactNode);
   skeletonHeight?: number;
   /** Período mostrado na imagem compartilhada ("Outubro de 2026", "Últimos 30 dias"…). */
   share?: { period: string };
@@ -55,6 +56,8 @@ export function SectionCard({
             </Text>
             {onRetry ? <Button variant="text" icon="refresh" label="Tentar novamente" onPress={onRetry} /> : null}
           </View>
+        ) : typeof children === "function" ? (
+          children(capturing)
         ) : (
           children
         )}

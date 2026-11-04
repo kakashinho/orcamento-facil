@@ -5,7 +5,7 @@ import { useScreenMetric } from "@/core/logging/use-screen-metric";
 import type { BudgetPeriod, BudgetStatus } from "@/data/api/types";
 import { useBudgetStatus } from "@/data/queries/planning";
 import { useMaintenance } from "@/data/system/maintenance-store";
-import { currentMonth } from "@/domain/dates";
+import { currentMonth, monthLabel } from "@/domain/dates";
 import { Button, Divider, EmptyState, Text } from "@/ui";
 import { MonthSelector } from "../../analytics/components/month-selector";
 import { SectionCard } from "../../analytics/components/section-card";
@@ -55,7 +55,7 @@ export function BudgetsSection() {
     >
       <MonthSelector month={month} onChange={setMonth} max={thisMonth} testID="budgets-month" />
 
-      {status.data && monthly.length > 0 ? <BudgetChart items={monthly} /> : null}
+      {status.data && monthly.length > 0 ? <BudgetChart items={monthly} period={monthLabel(month)} /> : null}
 
       <SectionCard
         title="Orçamentos do mês"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { errorMessage } from "@/core/http/api-error";
-import type { Goal, GoalDetail } from "@/data/api/types";
+import type { ContributionResult, Goal, GoalDetail } from "@/data/api/types";
 import { useCancelGoal, useGoal, useRemoveContribution } from "@/data/queries/planning";
 import { useMaintenance } from "@/data/system/maintenance-store";
 import { formatDate, todayIso } from "@/domain/dates";
@@ -15,12 +15,14 @@ import {
 import { formatMoney } from "@/domain/money";
 import { Banner, Button, Dialog, Divider, IconButton, ProgressBar, Sheet, Skeleton, Text } from "@/ui";
 import { useFeedback } from "../../feedback/feedback-provider";
+import { LinkIncomeDialog } from "./link-income-dialog";
 
 type Contribution = GoalDetail["contributions"][number];
 
 /**
  * Detalhe da meta (R16, R17): progresso, prazo e as receitas destinadas a ela (data, descrição e o
- * valor que conta). Ações: editar, cancelar a meta e remover um vínculo, sempre com confirmação.
+ * valor que conta). Ações: vincular uma receita, editar, cancelar a meta e remover um vínculo (as
+ * destrutivas, sempre com confirmação).
  */
 export function GoalDetailsSheet({
   open,
@@ -33,13 +35,14 @@ export function GoalDetailsSheet({
   onClose: () => void;
   onEdit: (goal: Goal) => void;
 }) {
-  const { showSnackbar } = useFeedback();
+  const { celebrate, showSnackbar } = useFeedback();
   const maintenance = useMaintenance();
   const goal = useGoal(goalId);
   const cancel = useCancelGoal();
   const removeContribution = useRemoveContribution();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [unlinking, setUnlinking] = useState<Contribution | null>(null);
+  const [linking, setLinking] = useState(false);
   const data = goal.data;
 
   const doCancel = () => {
@@ -55,6 +58,13 @@ export function GoalDetailsSheet({
         showSnackbar(errorMessage(error));
       },
     });
+  };
+
+  /** Vínculo criado: celebra só quando este vínculo completou a meta (R68). */
+  const linked = (result: ContributionResult) => {
+    setLinking(false);
+    if (result.achievedNow) celebrate(`Meta “${result.goal.name}” atingida`, "Parabéns pela conquista!");
+    else showSnackbar(`Receita vinculada à meta “${result.goal.name}”`);
   };
 
   const doUnlink = () => {
@@ -87,9 +97,20 @@ export function GoalDetailsSheet({
           ) : (
             <>
               <Summary goal={data} />
-              <Text weight="medium" accessibilityRole="header">
-                Receitas vinculadas
-              </Text>
+              <View style={styles.header}>
+                <Text weight="medium" accessibilityRole="header" style={styles.flex}>
+                  Receitas vinculadas
+                </Text>
+                {data.status !== "cancelled" ? (
+                  <Button
+                    variant="text"
+                    icon="add"
+                    label="Vincular receita"
+                    disabled={maintenance.active}
+                    onPress={() => setLinking(true)}
+                  />
+                ) : null}
+              </View>
               {data.contributions.length === 0 ? (
                 <Text variant="bodySmall" color="onSurfaceVariant">
                   Nenhuma receita destinada a esta meta ainda. Ao registrar uma receita, escolha “Destinar a uma meta”.
@@ -133,6 +154,7 @@ export function GoalDetailsSheet({
           )}
         </View>
       </Sheet>
+      {linking && data ? <LinkIncomeDialog goal={data} onClose={() => setLinking(false)} onDone={linked} /> : null}
       <Dialog
         open={confirmCancel}
         onClose={() => setConfirmCancel(false)}
@@ -228,6 +250,7 @@ function ContributionRow({ contribution, onRemove }: { contribution: Contributio
 const styles = StyleSheet.create({
   content: { gap: 12, paddingTop: 12 },
   summary: { gap: 8 },
+  header: { flexDirection: "row", alignItems: "center", gap: 8 },
   skeleton: { height: 160 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10 },
   actions: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 8 },

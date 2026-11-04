@@ -1,8 +1,11 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import * as Sharing from "expo-sharing";
+import { captureRef } from "react-native-view-shot";
 import type {
   BudgetHistory,
   BudgetStatus,
   BudgetStatusReport,
+  ContributionResult,
   Goal,
   GoalDetail,
   GoalStatus,
@@ -11,7 +14,7 @@ import type {
   Series,
 } from "@/data/api/types";
 import { addDays, currentMonth, formatDate, monthLabel, shiftMonth, todayIso } from "@/domain/dates";
-import { categories, wallet } from "@/test-utils/fixtures";
+import { categories, transaction, wallet } from "@/test-utils/fixtures";
 import { apiError, type FakeResponse } from "@/test-utils/fake-api";
 import { renderWithProviders, setupApi, signIn } from "@/test-utils/render";
 import { palettes } from "@/ui";
@@ -346,6 +349,24 @@ describe("orçamentos (R21, R74, R45)", () => {
     });
   });
 
+  it("compartilha o gráfico de orçado × gasto como imagem, com o aviso de privacidade (R30)", async () => {
+    planningApi();
+    await renderWithProviders(<PlanningScreen />);
+    const card = await screen.findByTestId("budget-chart-card");
+    await fireEvent.press(within(card).getByRole("button", { name: "Compartilhar Orçado × gasto" }));
+    const dialog = await screen.findByTestId("share-warning");
+    await fireEvent.press(within(dialog).getByRole("button", { name: "Compartilhar" }));
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalled());
+    expect(captureRef).toHaveBeenCalledWith(
+      expect.objectContaining({ current: expect.anything() }),
+      expect.objectContaining({ format: "png" }),
+    );
+    expect(Sharing.shareAsync).toHaveBeenCalledWith(expect.stringContaining(".png"), {
+      mimeType: "image/png",
+      dialogTitle: "Orçado × gasto",
+    });
+  });
+
   it("sem gasto calculado (câmbio), a barra de gasto some e há aviso", async () => {
     planningApi().on("GET", "/api/budgets/status", {
       body: report({ monthly: [status({ spent: null, remaining: null, percent: null, state: "ok" })] }),
@@ -634,6 +655,81 @@ describe("metas de economia (R15, R16, R17)", () => {
     await fireEvent.changeText(within(form).getByLabelText("Nome da meta"), "Viagem ao Chile");
     await fireEvent.press(within(form).getByRole("button", { name: "Salvar" }));
     await waitFor(() => expect(api.lastCall("PATCH", "/api/goals/:id")!.body).toEqual({ name: "Viagem ao Chile" }));
+  });
+
+  describe("vincular receita pelo detalhe da meta (R17)", () => {
+    const bonus = transaction({ id: "t2", type: "income", description: "Bônus", amount: 800, date: "2026-10-20" });
+    const salary = transaction({ id: "t1", type: "income", description: "Salário de outubro", amount: 5000 });
+    const result = (achievedNow: boolean, amount: number): ContributionResult => ({
+      contribution: {
+        id: "k2",
+        goalId: "g1",
+        transactionId: "t2",
+        amount,
+        currency: "BRL",
+        createdAt: "2026-10-21T12:00:00.000Z",
+      },
+      goal: goal({ saved: 250 + amount }),
+      achievedNow,
+    });
+
+    async function openLinkDialog(api: ReturnType<typeof planningApi>) {
+      api.on("GET", "/api/transactions", { body: { data: [salary, bonus], nextCursor: null } });
+      await renderWithProviders(<PlanningScreen />);
+      await openSection("Metas");
+      await fireEvent.press(await screen.findByTestId("goal-g1"));
+      const details = await screen.findByTestId("goal-details");
+      await fireEvent.press(await within(details).findByRole("button", { name: "Vincular receita" }));
+      return screen.findByTestId("link-income-dialog");
+    }
+
+    it("lista só as receitas que ainda não estão na meta e vincula uma parte do valor", async () => {
+      const api = planningApi().on("POST", "/api/goals/:id/contributions", { status: 201, body: result(false, 300) });
+      const dialog = await openLinkDialog(api);
+      expect(api.lastCall("GET", "/api/transactions")!.query).toMatchObject({ type: "income" });
+      expect(await within(dialog).findByText("Bônus")).toBeOnTheScreen();
+      expect(within(dialog).queryByText("Salário de outubro")).toBeNull();
+      expect(within(dialog).getByRole("button", { name: "Vincular" })).toBeDisabled();
+
+      await fireEvent.press(within(dialog).getByRole("radio", { name: /^Bônus/ }));
+      await fireEvent.changeText(within(dialog).getByLabelText("Valor para a meta"), "300");
+      await fireEvent.press(within(dialog).getByRole("button", { name: "Vincular" }));
+      await waitFor(() =>
+        expect(api.lastCall("POST", "/api/goals/:id/contributions")!.body).toEqual({
+          transactionId: "t2",
+          amount: 300,
+        }),
+      );
+      expect(await screen.findByText("Receita vinculada à meta “Viagem”")).toBeOnTheScreen();
+      expect(screen.queryByTestId("link-income-dialog")).toBeNull();
+    });
+
+    it("sem valor usa todo o disponível e celebra quando o vínculo completa a meta", async () => {
+      const api = planningApi().on("POST", "/api/goals/:id/contributions", { status: 201, body: result(true, 800) });
+      const dialog = await openLinkDialog(api);
+      await fireEvent.press(await within(dialog).findByRole("radio", { name: /^Bônus/ }));
+      await fireEvent.press(within(dialog).getByRole("button", { name: "Vincular" }));
+      await waitFor(() =>
+        expect(api.lastCall("POST", "/api/goals/:id/contributions")!.body).toEqual({ transactionId: "t2" }),
+      );
+      expect(await screen.findByText("Meta “Viagem” atingida!")).toBeOnTheScreen();
+      expect(await screen.findByText("Parabéns pela conquista!")).toBeOnTheScreen();
+    });
+
+    it("mostra no campo de valor o erro de regra do servidor e mantém o diálogo aberto", async () => {
+      const api = planningApi().on(
+        "POST",
+        "/api/goals/:id/contributions",
+        apiError(422, "VALIDATION_ERROR", "Valor inválido.", [
+          { path: "amount", message: "O valor passa do disponível da receita." },
+        ]),
+      );
+      const dialog = await openLinkDialog(api);
+      await fireEvent.press(await within(dialog).findByRole("radio", { name: /^Bônus/ }));
+      await fireEvent.changeText(within(dialog).getByLabelText("Valor para a meta"), "500");
+      await fireEvent.press(within(dialog).getByRole("button", { name: "Vincular" }));
+      expect(await within(dialog).findByText("O valor passa do disponível da receita.")).toBeOnTheScreen();
+    });
   });
 });
 
