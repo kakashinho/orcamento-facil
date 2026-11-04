@@ -31,7 +31,7 @@ export interface WalletServiceDeps {
   exchangeRates: ExchangeRateService;
   runner: TransactionRunner;
   clock: Clock;
-  /** Opcional: avisa alertas (ex.: saldo mínimo) depois de mudanças de saldo (ADR-S2-003). */
+  /** Opcional: avisa alertas (ex.: saldo mínimo) depois de mudanças de saldo. */
   events?: DomainEvents;
 }
 
@@ -174,7 +174,7 @@ export class WalletService {
     await runner.run(async (tx) => {
       const wallet = await wallets.findByIdForUpdate(userId, walletId, tx);
       if (!wallet) throw errors.notFound("Carteira");
-      // D-18: série ativa geraria ocorrências numa carteira inexistente.
+      // Uma série ativa geraria ocorrências numa carteira inexistente.
       if ((await series.countActiveByWallet(walletId, tx)) > 0) {
         throw errors.conflict(
           "WALLET_HAS_SERIES",

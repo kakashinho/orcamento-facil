@@ -42,7 +42,7 @@ function toDto(record: ReminderRecord): ReminderResponseDto {
 const dayOf = (date: string) => Number(date.slice(8, 10));
 
 /**
- * Lembretes de contas fixas (R34): no dia do vencimento, às 9h no fuso do usuário (D-63), um
+ * Lembretes de contas fixas (R34): no dia do vencimento, às 9h no fuso do usuário, um
  * aviso na caixa e por push; depois o vencimento avança pela frequência, mantendo o dia original.
  */
 export class ReminderService {

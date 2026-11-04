@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { detectMime, safeFileName } from "../../src/modules/attachments/services/file-signature.js";
 
-describe("tipo do anexo pela assinatura (ADR-S2-009)", () => {
+describe("tipo do anexo pela assinatura", () => {
   it.each([
     [Buffer.from("%PDF-1.7 resto"), "application/pdf"],
     [Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00]), "image/jpeg"],

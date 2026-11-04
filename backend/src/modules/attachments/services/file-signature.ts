@@ -2,7 +2,7 @@ import type { AttachmentMimeType } from "../types/attachment.types.js";
 
 /**
  * Tipo real do arquivo pelos primeiros bytes (assinatura), não pelo nome nem pelo `Content-Type`
- * que o cliente declara: um ".pdf" que é texto não passa (ADR-S2-009).
+ * que o cliente declara: um ".pdf" que é texto não passa.
  */
 export function detectMime(content: Buffer): AttachmentMimeType | null {
   if (content.length >= 5 && content.subarray(0, 5).toString("latin1") === "%PDF-") return "application/pdf";

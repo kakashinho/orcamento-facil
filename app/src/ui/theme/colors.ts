@@ -1,5 +1,5 @@
 /**
- * Paleta Material Design 3 (R80) — mesmos tokens do protótipo (NavegVelOrAmentoFCil/src/index.css).
+ * Paleta Material Design 3 (R80), com tokens de cor semânticos (superfície, primária, erro etc.).
  * Cada cor tem a versão clara e a escura (R42).
  */
 export interface Palette {

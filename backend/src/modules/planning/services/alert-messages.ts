@@ -1,5 +1,5 @@
 /**
- * Textos dos alertas. Regra (ADR-S2-005): nunca levam valores em dinheiro — só nomes e
+ * Textos dos alertas. Regra: nunca levam valores em dinheiro — só nomes e
  * percentuais. O detalhe aparece quando o usuário abre o orçamento, a meta ou a carteira.
  */
 export interface AlertText {

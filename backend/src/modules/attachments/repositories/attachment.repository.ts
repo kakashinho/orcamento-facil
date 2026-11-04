@@ -46,7 +46,7 @@ export class AttachmentRepository extends Repository {
     return row?.value ?? 0;
   }
 
-  /** Espaço ocupado pelo usuário, em bytes (cota — D-70). */
+  /** Espaço ocupado pelo usuário, em bytes (cota). */
   async usedBytes(userId: string): Promise<number> {
     const [row] = await this.db
       .select({ value: sql<number>`coalesce(sum(${transactionAttachments.sizeBytes}), 0)::bigint` })

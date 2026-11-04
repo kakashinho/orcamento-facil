@@ -31,7 +31,7 @@ export interface TransferServiceDeps {
   users: UserService;
   runner: TransactionRunner;
   clock: Clock;
-  /** Opcional: avisa alertas (ex.: saldo mínimo) depois de cada mudança (ADR-S2-003). */
+  /** Opcional: avisa alertas (ex.: saldo mínimo) depois de cada mudança. */
   events?: DomainEvents;
 }
 

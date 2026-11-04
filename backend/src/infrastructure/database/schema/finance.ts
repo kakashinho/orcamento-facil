@@ -114,7 +114,7 @@ export const tags = pgTable(
 
 /**
  * Recorrência (R37) ou parcelamento (R62): o plano das ocorrências. Cada ocorrência só vira
- * transação quando a data chega (ADR-S2-002), gerada pelo `TransactionService`; o saldo e os
+ * transação quando a data chega, gerada pelo `TransactionService`; o saldo e os
  * relatórios atuais não mudam de significado.
  */
 export const transactionSeries = pgTable(
@@ -137,7 +137,7 @@ export const transactionSeries = pgTable(
     amount: bytea("amount").notNull(),
     installments: smallint("installments"),
     startDate: date("start_date", { mode: "string" }).notNull(),
-    // Dia original: 31/01 mensal cai em 28/02 e volta a 31/03 (D-12).
+    // Dia original: 31/01 mensal cai em 28/02 e volta a 31/03.
     anchorDay: smallint("anchor_day").notNull(),
     endDate: date("end_date", { mode: "string" }),
     nextDate: date("next_date", { mode: "string" }),
@@ -197,7 +197,7 @@ export const transactions = pgTable(
       .where(sql`${t.deletedAt} is null`),
     index("transactions_wallet_idx").on(t.walletId),
     index("transactions_user_category_idx").on(t.userId, t.categoryId),
-    // Uma ocorrência por número: gerar duas vezes é inofensivo (ADR-S2-002).
+    // Uma ocorrência por número: gerar duas vezes é inofensivo.
     uniqueIndex("transactions_series_occurrence_uq")
       .on(t.seriesId, t.seriesOccurrence)
       .where(sql`${t.seriesId} is not null`),

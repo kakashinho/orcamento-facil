@@ -7,7 +7,7 @@ import { MAX_ATTACHMENT_BYTES } from "../types/attachment.types.js";
 
 /**
  * Prefixo: /api/transactions — anexos de uma transação (R24, R25, R76). O multipart é registrado
- * só neste plugin (encapsulado): as outras rotas continuam aceitando apenas JSON (ADR-S2-009).
+ * só neste plugin (encapsulado): as outras rotas continuam aceitando apenas JSON.
  */
 export function attachmentRoutes(controller: AttachmentController, guards: HttpGuards): FastifyPluginAsyncZod {
   return async (app) => {

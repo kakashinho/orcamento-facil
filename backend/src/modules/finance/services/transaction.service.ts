@@ -52,7 +52,7 @@ export interface TransactionServiceDeps {
   exchangeRates: ExchangeRateService;
   runner: TransactionRunner;
   clock: Clock;
-  /** Opcional: avisa alertas e metas depois de cada mudança (ADR-S2-003). */
+  /** Opcional: avisa alertas e metas depois de cada mudança. */
   events?: DomainEvents;
 }
 

@@ -5,7 +5,7 @@ export interface ReductionGoalRecord {
   categoryId: string;
   /** Redução desejada, de 1% a 90%. */
   percent: number;
-  /** Média mensal de gasto da categoria nos meses anteriores ao início; congelada na criação (D-32). */
+  /** Média mensal de gasto da categoria nos meses anteriores ao início; congelada na criação. */
   baselineCents: number;
   currency: string;
   baselineMonths: number;
@@ -15,7 +15,7 @@ export interface ReductionGoalRecord {
   updatedAt: Date;
 }
 
-/** Meses anteriores usados na base (D-32). */
+/** Meses anteriores usados na base. */
 export const REDUCTION_BASELINE_MONTHS = 3;
 
 /** Alvo do mês: base × (100 − percentual) / 100, em centavos. */

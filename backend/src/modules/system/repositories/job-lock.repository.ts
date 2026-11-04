@@ -4,7 +4,7 @@ import { Repository } from "../../../infrastructure/database/repository.js";
 export type LockOutcome<T> = { locked: false } | { locked: true; result: T };
 
 /**
- * Trava consultiva do PostgreSQL por nome de tarefa (ADR-S2-004): só uma instância da API roda
+ * Trava consultiva do PostgreSQL por nome de tarefa: só uma instância da API roda
  * cada tarefa agendada por vez. A trava pertence a uma transação aberta só para segurá-la e some
  * no fim dela, inclusive se a tarefa falhar. A tarefa em si usa outras conexões do pool.
  */

@@ -1,6 +1,6 @@
 /**
- * Design system do Orçamento Fácil (Material Design 3 — R80), traduzido do protótipo
- * NavegVelOrAmentoFCil para componentes React Native reutilizáveis (R84).
+ * Design system do Orçamento Fácil (Material Design 3 — R80): componentes React Native
+ * reutilizáveis, tokens de tema e gráficos (R84).
  */
 export * from "./theme";
 export { Icon, type IconName, type IconProps } from "./icons/icon";

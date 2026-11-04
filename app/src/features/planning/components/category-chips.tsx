@@ -3,7 +3,7 @@ import type { Category } from "@/data/api/types";
 import { categoryIcon } from "@/domain/catalog";
 import { Chip, Text } from "@/ui";
 
-/** Categorias de despesa ou de ambos os tipos: as únicas aceitas em orçamentos, reduções e metas (D-40). */
+/** Categorias de despesa ou de ambos os tipos: as únicas aceitas em orçamentos, reduções e metas. */
 export function spendingCategories(categories: Category[]): Category[] {
   return categories.filter((category) => category.type !== "income");
 }

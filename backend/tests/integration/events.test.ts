@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FinanceChangedEvent } from "../../src/infrastructure/events/domain-events.js";
 import { createTestApp, createTransaction, registerUser, type TestContext } from "./support/test-app.js";
 
-describe("eventos finance.changed depois do commit (ADR-S2-003)", () => {
+describe("eventos finance.changed depois do commit", () => {
   let ctx: TestContext;
   const received: FinanceChangedEvent[] = [];
 

@@ -6,7 +6,7 @@ import type { JobRunResult, JobTask } from "../types/system.types.js";
 import type { MaintenanceService } from "./maintenance.service.js";
 
 /**
- * Tarefas agendadas de negócio (ADR-S2-004): gerar ocorrências de séries, lembretes, reenvio de
+ * Tarefas agendadas de negócio: gerar ocorrências de séries, lembretes, reenvio de
  * push. Diferente do housekeeping, escrevem dados do usuário — por isso cada tarefa roda sob trava
  * no banco (uma instância por vez) e nada roda durante o modo de manutenção (R72). Cada módulo
  * fornece as suas tarefas; o system só agenda, sem conhecer as tabelas dos outros.

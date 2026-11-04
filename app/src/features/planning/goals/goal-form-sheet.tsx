@@ -20,7 +20,7 @@ const FIELDS = ["name", "targetAmount", "deadline", "categoryId"] as const;
 
 /**
  * Criar ou editar uma meta de economia (R15): nome, valor alvo, data limite (a partir de hoje) e a
- * categoria associada (de despesa ou de ambos os tipos — D-40). Remontada (key) a cada abertura.
+ * categoria associada (de despesa ou de ambos os tipos). Remontada (key) a cada abertura.
  */
 export function GoalFormSheet({
   open,

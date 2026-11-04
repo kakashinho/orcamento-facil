@@ -17,7 +17,7 @@ export const ALERT_KINDS: ReadonlySet<NotificationKind> = new Set([
 export type NotificationEntityType = "budget" | "reduction_goal" | "savings_goal" | "wallet" | "transaction" | "reminder";
 export type PushStatus = "none" | "pending" | "sent" | "failed" | "skipped";
 
-/** O que um módulo pede para avisar. Título e texto sem valores em dinheiro (ADR-S2-005). */
+/** O que um módulo pede para avisar. Título e texto sem valores em dinheiro. */
 export interface NotifyInput {
   userId: string;
   kind: NotificationKind;
@@ -63,7 +63,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   alertsPushEnabled: true,
 };
 
-/** Retenção (D-64): lidas por 90 dias, não lidas por 180; aparelhos revogados por 30. */
+/** Retenção: lidas por 90 dias, não lidas por 180; aparelhos revogados por 30. */
 export const READ_RETENTION_DAYS = 90;
 export const UNREAD_RETENTION_DAYS = 180;
 export const REVOKED_DEVICE_RETENTION_DAYS = 30;

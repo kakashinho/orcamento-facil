@@ -24,7 +24,7 @@ function fakeFetch(fcmStatus: number, fcmBody: unknown = {}) {
   return { impl, calls };
 }
 
-describe("envio de push pelo FCM HTTP v1 (ADR-S2-008)", () => {
+describe("envio de push pelo FCM HTTP v1", () => {
   it("troca um JWT RS256 da conta de serviço por token OAuth, guarda em cache e envia a mensagem", async () => {
     const start = new Date("2026-11-03T12:00:00Z");
     const clock = new MutableClock(start);

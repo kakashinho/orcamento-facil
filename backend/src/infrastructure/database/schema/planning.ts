@@ -11,7 +11,7 @@ import { users } from "./users.js";
 const MONTH_PATTERN = "^[0-9]{4}-(0[1-9]|1[0-2])$";
 
 /**
- * Orçamento por categoria com vigência por mês (ADR-S2-006): o limite vale de `valid_from` até
+ * Orçamento por categoria com vigência por mês: o limite vale de `valid_from` até
  * `valid_to` (nulo = em vigor). Alterar o valor fecha a vigência atual e abre outra, então o
  * histórico (R23) mostra o limite que valia em cada mês.
  */
@@ -27,7 +27,7 @@ export const budgets = pgTable(
       .references(() => categories.id, { onDelete: "cascade" }),
     period: varchar("period", { length: 10 }).notNull(),
     amount: bytea("amount").notNull(),
-    // Moeda principal do usuário na criação: o gasto é convertido para ela (D-30).
+    // Moeda principal do usuário na criação: o gasto é convertido para ela.
     currency: char("currency", { length: 3 }).notNull(),
     validFrom: char("valid_from", { length: 7 }).notNull(),
     validTo: char("valid_to", { length: 7 }),
@@ -78,7 +78,7 @@ export const reductionGoals = pgTable(
 
 /**
  * Meta de economia (R15): valor alvo, data limite e categoria. O progresso (R16) não é gravado:
- * sai dos vínculos com receitas, calculado na leitura (ADR-S2-007).
+ * sai dos vínculos com receitas, calculado na leitura.
  */
 export const savingsGoals = pgTable(
   "savings_goals",
@@ -106,7 +106,7 @@ export const savingsGoals = pgTable(
 );
 
 /**
- * Parte de uma receita destinada a uma meta (R17). O dinheiro continua na carteira (D-03); a
+ * Parte de uma receita destinada a uma meta (R17). O dinheiro continua na carteira; a
  * receita só conta enquanto existir e for receita, e no máximo pelo valor dela.
  */
 export const goalContributions = pgTable(

@@ -2,7 +2,7 @@ import { addDays } from "../../../shared/utils/dates.js";
 import type { SeriesFrequency, SeriesRecord } from "../types/series.types.js";
 
 /**
- * Regras puras das séries (ADR-S2-002), sem banco: calendário das ocorrências e divisão das
+ * Regras puras das séries, sem banco: calendário das ocorrências e divisão das
  * parcelas. O app usa a mesma divisão para a prévia (domain/series.ts).
  */
 
@@ -10,7 +10,7 @@ const pad = (value: number) => String(value).padStart(2, "0");
 
 /**
  * Data da ocorrência `index` (0 = a primeira). Mensal e anual mantêm o dia original (`anchorDay`)
- * e caem no último dia dos meses mais curtos: 31/01 → 28/02 → 31/03; 29/02 → 28/02 (D-12).
+ * e caem no último dia dos meses mais curtos: 31/01 → 28/02 → 31/03; 29/02 → 28/02.
  */
 export function occurrenceDate(startDate: string, anchorDay: number, frequency: SeriesFrequency, index: number): string {
   if (frequency === "weekly") return addDays(startDate, 7 * index);
@@ -22,7 +22,7 @@ export function occurrenceDate(startDate: string, anchorDay: number, frequency: 
   return `${targetYear}-${pad(targetMonth)}-${pad(Math.min(anchorDay, lastDay))}`;
 }
 
-/** Valor da parcela `index` (0 = a primeira), em centavos: a sobra da divisão fica na 1ª (D-11). */
+/** Valor da parcela `index` (0 = a primeira), em centavos: a sobra da divisão fica na 1ª. */
 export function installmentCents(totalCents: number, count: number, index: number): number {
   const base = Math.floor(totalCents / count);
   return index === 0 ? totalCents - base * (count - 1) : base;

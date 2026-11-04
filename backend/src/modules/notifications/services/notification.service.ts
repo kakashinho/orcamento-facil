@@ -24,7 +24,7 @@ import {
 } from "../types/notification.types.js";
 
 const DAY_MS = 86_400_000;
-/** Reenvio de push (ADR-S2-008): até 3 tentativas, a partir de 1 minuto depois do aviso. */
+/** Reenvio de push: até 3 tentativas, a partir de 1 minuto depois do aviso. */
 const MAX_PUSH_ATTEMPTS = 3;
 const RETRY_AFTER_MS = 60_000;
 const RETRY_BATCH = 100;
@@ -56,7 +56,7 @@ export function toNotificationResponseDto(record: NotificationRecord): Notificat
 
 /**
  * Caixa de notificações (R22, R47, R67, R74, R78, R68, R18, R34). Os outros módulos chamam
- * `notify` com textos prontos e sem valores em dinheiro (ADR-S2-005); a chave de deduplicação
+ * `notify` com textos prontos e sem valores em dinheiro; a chave de deduplicação
  * garante que reavaliar um alerta nunca repita o aviso.
  */
 export class NotificationService {
@@ -205,7 +205,7 @@ export class NotificationService {
     return next;
   }
 
-  /** Limpeza (D-64): notificações vencidas e aparelhos revogados há mais de 30 dias. */
+  /** Limpeza: notificações vencidas e aparelhos revogados há mais de 30 dias. */
   async purgeExpired(now: Date): Promise<number> {
     const removed = await this.deps.notifications.purge(
       new Date(now.getTime() - READ_RETENTION_DAYS * DAY_MS),

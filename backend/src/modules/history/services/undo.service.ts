@@ -31,7 +31,7 @@ export class UndoService {
     private readonly history: ActionHistoryService,
     private readonly handlers: UndoHandlers,
     private readonly eventLog: EventLogger,
-    /** Opcional: depois de desfazer, alertas e metas reavaliam o usuário (ADR-S2-003). */
+    /** Opcional: depois de desfazer, alertas e metas reavaliam o usuário. */
     private readonly events?: DomainEvents,
   ) {}
 

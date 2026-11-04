@@ -86,7 +86,7 @@ export async function requestPermission(): Promise<PushPermission> {
   return permissionOf(await native.requestPermissionsAsync());
 }
 
-/** Token nativo do Firebase Cloud Messaging (não o token do serviço de push da Expo — ADR-S2-008). */
+/** Token nativo do Firebase Cloud Messaging (não o token do serviço de push da Expo). */
 export async function getDeviceToken(): Promise<string | null> {
   const native = loadNativeNotifications();
   if (!native) return null;

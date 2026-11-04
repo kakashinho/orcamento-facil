@@ -2,7 +2,7 @@ import { createSigner } from "fast-jwt";
 import type { Clock } from "../clock.js";
 import type { Logger } from "../logging/logger.js";
 
-/** Push sem valores em dinheiro (ADR-S2-005): título, texto e dados para o app navegar. */
+/** Push sem valores em dinheiro: título, texto e dados para o app navegar. */
 export interface PushMessage {
   title: string;
   body: string;
@@ -32,7 +32,7 @@ const TOKEN_MARGIN_MS = 5 * 60_000;
 export const ANDROID_CHANNEL_ID = "avisos";
 
 /**
- * Envio pelo Firebase Cloud Messaging, API HTTP v1 (R18, ADR-S2-008), sem o SDK do Firebase:
+ * Envio pelo Firebase Cloud Messaging, API HTTP v1 (R18), sem o SDK do Firebase:
  * a conta de serviço assina um JWT (RS256) trocado por um token OAuth 2.0, guardado em cache.
  */
 export class FcmPushSender implements PushSender {

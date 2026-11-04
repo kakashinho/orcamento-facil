@@ -74,7 +74,7 @@ const envSchema = z.object({
   // Tarefas agendadas de negócio: ocorrências de séries, lembretes, reenvio de push (0 desliga).
   JOBS_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
 
-  // Espaço para anexos por usuário (D-70).
+  // Espaço para anexos por usuário.
   ATTACHMENT_QUOTA_MB: z.coerce.number().int().positive().default(100),
 
   // Push pelo Firebase Cloud Messaging (R18). Sem nada disso, o push é só registrado no log.

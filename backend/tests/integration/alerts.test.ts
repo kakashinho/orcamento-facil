@@ -62,7 +62,7 @@ describe("alertas de risco (R22, R74, R67)", () => {
     expect(kinds(after)).toEqual(["budget_exceeded", "budget_warning"]);
     expect(after.find((n) => n.kind === "budget_exceeded")!.body).toBe("Alimentação passou do orçamento do mês.");
 
-    // Nenhum texto carrega valores em dinheiro (ADR-S2-005).
+    // Nenhum texto carrega valores em dinheiro.
     for (const notification of after) expect(`${notification.title} ${notification.body}`).not.toMatch(/R\$|\d+,\d{2}/);
   });
 

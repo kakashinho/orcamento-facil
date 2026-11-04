@@ -116,7 +116,7 @@ export class NotificationRepository extends Repository {
     return rows.map(toRecord);
   }
 
-  /** Remove lidas antes de `readBefore` e não lidas criadas antes de `unreadBefore` (D-64). */
+  /** Remove lidas antes de `readBefore` e não lidas criadas antes de `unreadBefore`. */
   async purge(readBefore: Date, unreadBefore: Date): Promise<number> {
     const result = await this.db
       .delete(notifications)

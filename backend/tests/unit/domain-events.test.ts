@@ -18,7 +18,7 @@ const event: FinanceChangedEvent = {
   origin: "user",
 };
 
-describe("eventos de domínio (ADR-S2-003)", () => {
+describe("eventos de domínio", () => {
   it("entrega o evento a cada assinante, sem esperar por eles", async () => {
     const { events } = setup();
     const received: string[] = [];

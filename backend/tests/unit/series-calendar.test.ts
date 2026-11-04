@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { advance, installmentCents, occurrenceDate } from "../../src/modules/finance/services/series-rules.js";
 
-describe("calendário das séries (D-12)", () => {
+describe("calendário das séries", () => {
   it("mensal mantém o dia original e cai no fim dos meses curtos", () => {
     const dates = [0, 1, 2, 3].map((index) => occurrenceDate("2026-01-31", 31, "monthly", index));
     expect(dates).toEqual(["2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"]);
@@ -25,7 +25,7 @@ describe("calendário das séries (D-12)", () => {
   });
 });
 
-describe("divisão das parcelas (D-11)", () => {
+describe("divisão das parcelas", () => {
   it("R$ 100,00 em 3 = 33,34 + 33,33 + 33,33", () => {
     expect([0, 1, 2].map((index) => installmentCents(100_00, 3, index))).toEqual([33_34, 33_33, 33_33]);
   });

@@ -385,7 +385,7 @@ export class ReportService {
 
   /**
    * R63: saldo projetado mês a mês. Parte do saldo total de hoje e soma as ocorrências ainda não
-   * registradas das séries ativas — recorrências e parcelas restantes (D-14) —, convertidas para a
+   * registradas das séries ativas — recorrências e parcelas restantes —, convertidas para a
    * moeda principal com o câmbio atual.
    */
   async projection(userId: string, query: ProjectionQueryDto): Promise<ProjectionResponseDto> {

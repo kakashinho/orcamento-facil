@@ -3,7 +3,7 @@ import type { IconName } from "@/ui";
 
 /**
  * Anexos das transações: fotos (R24), documentos (R25) e comprovantes de pagamento (R76).
- * Mesmos limites do servidor (D-70), conferidos no aparelho antes do envio para não gastar dados (R86).
+ * Mesmos limites do servidor, conferidos no aparelho antes do envio para não gastar dados (R86).
  */
 
 export const ACCEPTED_MIME_TYPES: readonly AttachmentMimeType[] = [
@@ -19,7 +19,7 @@ export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 /** Anexos por transação. */
 export const MAX_ATTACHMENTS = 10;
 
-/** Lado maior da foto depois de reduzida, em pixels (ADR-S2-012). */
+/** Lado maior da foto depois de reduzida, em pixels. */
 export const PHOTO_MAX_SIDE = 1600;
 
 /** Compressão JPEG da foto reduzida (0 a 1). */

@@ -29,7 +29,7 @@ import type { TagService } from "./tag.service.js";
 import type { TransactionService } from "./transaction.service.js";
 import type { WalletService } from "./wallet.service.js";
 
-/** Ocorrências vencidas geradas de uma vez, por série e por execução (D-15). */
+/** Ocorrências vencidas geradas de uma vez, por série e por execução. */
 const MAX_CATCH_UP = 12;
 const DUE_BATCH = 200;
 
@@ -63,7 +63,7 @@ function snapshotOf(series: SeriesRecord): SeriesSnapshot {
 }
 
 /**
- * Recorrências (R37) e parcelamentos (R62) como séries geradas na data (ADR-S2-002). A série
+ * Recorrências (R37) e parcelamentos (R62) como séries geradas na data. A série
  * guarda o plano; cada ocorrência vira transação real pelo `TransactionService` quando a data
  * chega (na criação, se já venceu; depois, pela tarefa agendada), então saldo, cifragem, tags e
  * categoria seguem as regras de sempre.
@@ -80,7 +80,7 @@ export class SeriesService {
     this.deps.events?.publish({ type: "finance.changed", userId, cause: "series.generated", walletIds, origin });
   }
 
-  /** D-16: datas entre 1 ano atrás e 1 ano à frente. */
+  /** Datas aceitas: entre 1 ano atrás e 1 ano à frente. */
   private assertDateWindow(date: string, today: string): void {
     if (date < addDays(today, -366) || date > addDays(today, 366)) {
       throw errors.unprocessable("DATE_OUT_OF_RANGE", "Use uma data entre 1 ano atrás e 1 ano à frente.", "date");
@@ -355,7 +355,7 @@ export class SeriesService {
     return planned.sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? -1 : 1));
   }
 
-  // ---------------------------------------------------------------- alteração (D-13)
+  // ---------------------------------------------------------------- alteração
 
   private notActive(): never {
     throw errors.conflict("SERIES_NOT_ACTIVE", "Esta recorrência ou parcelamento já foi encerrado ou cancelado.");

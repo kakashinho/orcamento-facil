@@ -106,7 +106,7 @@ describe("metas de economia (R15, R16, R17, R68)", () => {
       ["Carro", 400],
     ]);
 
-    // Duplicar a receita não copia os vínculos (D-73).
+    // Duplicar a receita não copia os vínculos.
     const copy = (await user.api.post(`/api/transactions/${freela.id}/duplicate`, {})).json();
     expect((await user.api.get(`/api/goals/contributions?transactionId=${copy.id}`)).json().data).toEqual([]);
 
@@ -163,7 +163,7 @@ describe("metas de economia (R15, R16, R17, R68)", () => {
     expect(inbox).toEqual([
       expect.objectContaining({ kind: "goal_achieved", title: "Meta atingida!", body: "Você completou a meta “Fone”.", entityId: small.id }),
     ]);
-    // Continua aceitando vínculos (D-42), sem novo aviso.
+    // Continua aceitando vínculos, sem novo aviso.
     const third = await income(user, 50);
     expect((await user.api.post(`/api/goals/${small.id}/contributions`, { transactionId: third.id })).json().achievedNow).toBe(false);
     await ctx.container.events.idle();

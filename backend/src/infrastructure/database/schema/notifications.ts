@@ -19,7 +19,7 @@ import { bytea } from "./types.js";
 import { users } from "./users.js";
 
 // Notificações (R22, R47, R67, R74, R78, R68, R18, R34): caixa do app, aparelhos para push e
-// preferências de aviso. Título e texto NUNCA levam valores em dinheiro (ADR-S2-005): o detalhe
+// preferências de aviso. Título e texto NUNCA levam valores em dinheiro: o detalhe
 // fica na tela da entidade.
 
 export const NOTIFICATION_KINDS = [
@@ -119,7 +119,7 @@ export const reminders = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 80 }).notNull(),
-    // Valor opcional, cifrado (R81); o aviso não o mostra (ADR-S2-005).
+    // Valor opcional, cifrado (R81); o aviso não o mostra.
     amount: bytea("amount"),
     currency: char("currency", { length: 3 }),
     frequency: varchar("frequency", { length: 10 }).notNull(),

@@ -9,7 +9,7 @@ export interface ReminderRecord {
   amountCents: number | null;
   currency: string | null;
   frequency: ReminderFrequency;
-  /** Dia original do vencimento: 31 cai no último dia dos meses curtos (D-12). */
+  /** Dia original do vencimento: 31 cai no último dia dos meses curtos. */
   anchorDay: number;
   nextDueDate: string;
   seriesId: string | null;
@@ -23,5 +23,5 @@ export type ReminderChanges = Partial<
   Pick<ReminderRecord, "title" | "amountCents" | "currency" | "frequency" | "anchorDay" | "nextDueDate" | "active" | "lastNotifiedOn">
 > & { updatedAt: Date };
 
-/** Hora local do aviso de vencimento (D-63). */
+/** Hora local do aviso de vencimento. */
 export const BILL_REMINDER_HOUR = 9;

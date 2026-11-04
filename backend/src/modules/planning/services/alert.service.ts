@@ -24,14 +24,14 @@ export interface AlertServiceDeps {
   clock: Clock;
 }
 
-/** Transação incomum (D-33): histórico mínimo e janela. */
+/** Transação incomum: histórico mínimo e janela. */
 const UNUSUAL_MIN_SAMPLES = 5;
 const UNUSUAL_WINDOW_DAYS = 90;
 
 /**
  * Alertas de risco (R22, R74, R67, R78, R47) e meta atingida (R68). Assina os eventos do finance
- * e do planning (ADR-S2-003) e reavalia o usuário depois de cada mudança. É idempotente: cada
- * aviso tem uma chave de deduplicação, então reavaliar nunca repete a notificação (D-31).
+ * e do planning e reavalia o usuário depois de cada mudança. É idempotente: cada
+ * aviso tem uma chave de deduplicação, então reavaliar nunca repete a notificação.
  */
 export class AlertService {
   constructor(private readonly deps: AlertServiceDeps) {}
@@ -53,7 +53,7 @@ export class AlertService {
   /**
    * R47: despesa registrada pelo usuário muito acima do habitual da categoria — maior que o dobro
    * da média e que média + 2 desvios-padrão das despesas dos 90 dias anteriores, com ao menos 5
-   * amostras, tudo na moeda principal (D-33). Parcelas e ocorrências geradas não entram aqui.
+   * amostras, tudo na moeda principal. Parcelas e ocorrências geradas não entram aqui.
    */
   async evaluateUnusual(userId: string, transactionId: string): Promise<void> {
     const { transactions, wallets, exchangeRates, users, notifications } = this.deps;
@@ -99,7 +99,7 @@ export class AlertService {
     });
   }
 
-  /** R78: carteira abaixo do saldo mínimo — no máximo um aviso por carteira por dia (D-34). */
+  /** R78: carteira abaixo do saldo mínimo — no máximo um aviso por carteira por dia. */
   async evaluateLowBalance(userId: string, walletIds: string[]): Promise<void> {
     const below = await this.deps.wallets.listBelowMinimum(userId, walletIds.length > 0 ? walletIds : undefined);
     if (below.length === 0) return;

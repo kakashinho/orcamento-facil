@@ -20,7 +20,7 @@ export interface BudgetRecord {
 /** Situação do gasto em relação ao limite (R21, R22, R45). */
 export type BudgetState = "ok" | "warning" | "exceeded";
 
-/** A partir deste percentual o orçamento fica "em atenção" (D-31). */
+/** A partir deste percentual o orçamento fica "em atenção". */
 export const BUDGET_WARNING_PERCENT = 80;
 
 /** `exceeded` quando passa do limite; `warning` a partir de 80% do limite. */

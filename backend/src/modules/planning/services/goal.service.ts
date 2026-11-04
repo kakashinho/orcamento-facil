@@ -27,7 +27,7 @@ import type {
 import type { ContributionRecord, GoalChanges, GoalRecord, GoalStatus } from "../types/goal.types.js";
 import type { CategoryInfo } from "./expense-totals.js";
 
-/** Lembretes de prazo (R18): 7 dias e 1 dia antes da data limite (D-62). */
+/** Lembretes de prazo (R18): 7 dias e 1 dia antes da data limite. */
 const DEADLINE_REMINDER_DAYS = [7, 1] as const;
 
 export interface GoalServiceDeps {
@@ -49,8 +49,8 @@ interface Progress {
 
 /**
  * Metas de economia (R15), progresso (R16), receitas destinadas (R17) e meta atingida (R68).
- * O dinheiro continua na carteira (D-03): a meta só registra quanto de cada receita foi destinado,
- * e o acumulado é calculado na leitura (ADR-S2-007) — editar, excluir ou desfazer a receita
+ * O dinheiro continua na carteira: a meta só registra quanto de cada receita foi destinado,
+ * e o acumulado é calculado na leitura — editar, excluir ou desfazer a receita
  * muda o progresso sem acoplar o finance ao planning.
  */
 export class GoalService {
@@ -68,7 +68,7 @@ export class GoalService {
       : { id: categoryId, name: "Categoria excluída", predefined: false };
   }
 
-  /** Categoria da meta: disponível e não exclusiva de receitas (D-40). */
+  /** Categoria da meta: disponível e não exclusiva de receitas. */
   private async assertGoalCategory(userId: string, categoryId: string) {
     const category = await this.deps.categories.assertAssignable(userId, categoryId);
     if (category.type === "income") {
@@ -316,7 +316,7 @@ export class GoalService {
   }
 
   /**
-   * R68: marca como atingidas as metas ativas que chegaram a 100% e avisa uma única vez (D-42).
+   * R68: marca como atingidas as metas ativas que chegaram a 100% e avisa uma única vez.
    * Chamado depois de cada vínculo e, pelos alertas, depois de mudanças no finance. Devolve os
    * ids das metas recém-atingidas.
    */

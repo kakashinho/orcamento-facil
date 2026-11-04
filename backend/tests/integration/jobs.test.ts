@@ -4,7 +4,7 @@ import { JobScheduler } from "../../src/modules/system/services/job-scheduler.se
 import type { JobTask } from "../../src/modules/system/types/system.types.js";
 import { createTestApp, registerUser, type TestContext, type TestUser, unique } from "./support/test-app.js";
 
-describe("tarefas agendadas com trava no banco (ADR-S2-004)", () => {
+describe("tarefas agendadas com trava no banco", () => {
   let ctx: TestContext;
   let admin: TestUser;
   const adminEmail = `${unique("admin")}@teste.com`;

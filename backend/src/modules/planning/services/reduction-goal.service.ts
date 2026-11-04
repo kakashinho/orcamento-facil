@@ -26,7 +26,7 @@ export interface ReductionGoalServiceDeps extends ExpenseTotalsDeps {
 
 /**
  * Metas de redução de gastos (R67): "gastar X% menos" numa categoria em relação à média dos 3
- * meses anteriores ao início. A base é calculada uma vez e congelada (D-32), para que lançamentos
+ * meses anteriores ao início. A base é calculada uma vez e congelada, para que lançamentos
  * antigos feitos depois não mudem a meta.
  */
 export class ReductionGoalService {

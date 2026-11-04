@@ -6,7 +6,7 @@ import { secureStorage } from "@/core/storage/secure-storage";
 
 type ViewShotPackage = typeof import("react-native-view-shot");
 
-/** Preferência local "Não perguntar de novo" do aviso de privacidade (D-80); não é dado financeiro. */
+/** Preferência local "Não perguntar de novo" do aviso de privacidade; não é dado financeiro. */
 export const SHARE_WARNING_KEY = "of.preferences.shareWarningDismissed";
 
 /**

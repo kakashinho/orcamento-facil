@@ -12,7 +12,7 @@ export interface DailyReminderServiceDeps {
 }
 
 /**
- * R18: lembrete de registrar as despesas no fim do dia (D-61). Tarefa agendada: a partir da hora
+ * R18: lembrete de registrar as despesas no fim do dia. Tarefa agendada: a partir da hora
  * escolhida (padrão 20h, no fuso do usuário), só para quem tem aparelho para receber push e ainda
  * não registrou nenhuma transação naquele dia. Um por dia, pela chave de deduplicação.
  */

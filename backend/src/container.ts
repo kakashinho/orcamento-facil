@@ -135,7 +135,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
 
   // ---------- infraestrutura ----------
   const eventLog = new EventLogger(repositories.appLogs, logger);
-  // Eventos de domínio publicados depois do commit: alertas e metas reagem sem acoplar o finance (ADR-S2-003).
+  // Eventos de domínio publicados depois do commit: alertas e metas reagem sem acoplar o finance.
   const events = new DomainEvents(eventLog);
   const mailer =
     overrides.mailer ??
@@ -224,7 +224,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
-  // Recorrências e parcelamentos (R37, R62): cada ocorrência vira transação na data (ADR-S2-002).
+  // Recorrências e parcelamentos (R37, R62): cada ocorrência vira transação na data.
   const series = new SeriesService({
     series: repositories.series,
     transactions,
@@ -238,7 +238,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     eventLog,
     events,
   });
-  // Anexos (R24, R25, R76): cifrados no banco, só para transações ativas (ADR-S2-009).
+  // Anexos (R24, R25, R76): cifrados no banco, só para transações ativas.
   const attachments = new AttachmentService({
     attachments: repositories.attachments,
     transactions,
@@ -262,7 +262,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
   };
   const undo = new UndoService(runner, history, undoHandlers, eventLog, events);
   // Caixa de avisos (R22, R47, R67, R74, R78, R68, R18, R34): os outros módulos chamam `notify`.
-  // Push (R18, ADR-S2-008): FCM com a conta de serviço; sem credencial, só registra no log.
+  // Push (R18): FCM com a conta de serviço; sem credencial, só registra no log.
   const pushSender =
     overrides.pushSender ?? (config.push.fcm ? new FcmPushSender(config.push.fcm, clock) : new LogPushSender(logger));
   const notifications = new NotificationService({
@@ -296,7 +296,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     events,
   });
-  // Metas de economia (R15–R17, R68): progresso calculado na leitura (ADR-S2-007).
+  // Metas de economia (R15–R17, R68): progresso calculado na leitura.
   const goals = new GoalService({
     goals: repositories.goals,
     contributions: repositories.goalContributions,
@@ -348,7 +348,7 @@ export function createContainer(config: AppConfig, overrides: ContainerOverrides
     clock,
     eventLog,
   );
-  // Tarefas agendadas de negócio (ADR-S2-004): cada módulo fornece as suas; o system só agenda.
+  // Tarefas agendadas de negócio: cada módulo fornece as suas; o system só agenda.
   const dailyReminders = new DailyReminderService({ notifications, devices: repositories.pushDevices, transactions, users });
   // Lembretes de contas fixas (R34): aviso no dia do vencimento.
   const reminders = new ReminderService({ reminders: repositories.reminders, series, notifications, users, clock });

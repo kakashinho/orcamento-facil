@@ -186,7 +186,7 @@ export function PreferencesScreen() {
         ) : null}
 
         <Text variant="caption" color="onSurfaceVariant" align="center" style={styles.about}>
-          Orçamento Fácil · v{env.appVersion} · Sprint 1{"\n"}API: {apiUrl}
+          Orçamento Fácil · v{env.appVersion} · Sprint 2{"\n"}API: {apiUrl}
         </Text>
       </ContentContainer>
 

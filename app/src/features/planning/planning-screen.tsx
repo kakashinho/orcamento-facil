@@ -21,7 +21,7 @@ export function parseSection(value: string | string[] | undefined): PlanningSect
 }
 
 /**
- * Planejamento (ADR-S2-011): Orçamentos (R21, R74, R45, R23, R67) · Metas (R15, R16, R17) ·
+ * Planejamento: Orçamentos (R21, R74, R45, R23, R67) · Metas (R15, R16, R17) ·
  * Contas (R37, R62, R34). Os avisos abrem a seção certa com `/planning?section=goals`.
  */
 export function PlanningScreen() {

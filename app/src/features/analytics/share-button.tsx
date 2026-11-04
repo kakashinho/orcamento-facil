@@ -10,7 +10,7 @@ const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() 
 
 /**
  * Botão "Compartilhar" do cartão (R30). Na primeira vez, avisa que a imagem mostra valores das
- * finanças, com "Não perguntar de novo" guardado no aparelho (D-80). Escondido sem o módulo de
+ * finanças, com "Não perguntar de novo" guardado no aparelho. Escondido sem o módulo de
  * captura (Expo Go).
  */
 export function ShareButton({

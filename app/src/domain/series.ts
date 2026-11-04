@@ -9,7 +9,7 @@ import { formatMoney } from "./money";
 export const MIN_INSTALLMENTS = 2;
 export const MAX_INSTALLMENTS = 72;
 
-/** Texto de ajuda do formulário: nada entra no saldo antes da data (D-01). */
+/** Texto de ajuda do formulário: nada entra no saldo antes da data. */
 export const SERIES_HELP = "As próximas aparecem automaticamente na data de cada uma.";
 
 /** Opções do "Repetir" no formulário e no "Marcar como recorrente". */
@@ -34,7 +34,7 @@ export function seriesLabel(
   return repeatLabel(series.frequency);
 }
 
-/** Valor da parcela `index` (0 = a primeira), em centavos: a sobra da divisão fica na 1ª (D-11). */
+/** Valor da parcela `index` (0 = a primeira), em centavos: a sobra da divisão fica na 1ª. */
 export function installmentCents(totalCents: number, count: number, index: number): number {
   const base = Math.floor(totalCents / count);
   return index === 0 ? totalCents - base * (count - 1) : base;

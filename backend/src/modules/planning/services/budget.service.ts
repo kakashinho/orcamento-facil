@@ -35,7 +35,7 @@ export interface BudgetServiceDeps {
   exchangeRates: ExchangeRateService;
   runner: TransactionRunner;
   clock: Clock;
-  /** Opcional: avisa os alertas quando um orçamento muda (ADR-S2-003). */
+  /** Opcional: avisa os alertas quando um orçamento muda. */
   events?: DomainEvents;
 }
 
@@ -58,8 +58,8 @@ function byPercentDesc(a: BudgetStatusItemDto, b: BudgetStatusItemDto): number {
 
 /**
  * Orçamentos por categoria (R21), limites diários (R74), histórico (R23) e orçado × gasto (R45).
- * Cada orçamento vale de um mês em diante até mudar (ADR-S2-006). O gasto vem das despesas do
- * finance, decifradas e convertidas para a moeda do orçamento (D-30).
+ * Cada orçamento vale de um mês em diante até mudar. O gasto vem das despesas do
+ * finance, decifradas e convertidas para a moeda do orçamento.
  */
 export class BudgetService {
   private readonly totals: ExpenseTotals;

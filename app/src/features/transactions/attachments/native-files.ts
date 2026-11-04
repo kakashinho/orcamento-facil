@@ -58,7 +58,7 @@ export async function pickDocument(): Promise<PickedFile | null> {
 }
 
 /**
- * Reduz a foto para o lado maior de 1600 px e comprime em JPEG 0,7 (ADR-S2-012). Sem o módulo,
+ * Reduz a foto para o lado maior de 1600 px e comprime em JPEG 0,7. Sem o módulo,
  * envia a original (o servidor recusa acima de 5 MB com mensagem própria).
  */
 export async function shrinkPhoto(photo: { uri: string; width: number; height: number }): Promise<LocalFile> {

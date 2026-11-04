@@ -6,7 +6,7 @@ import { users } from "./users.js";
 
 /**
  * Anexos das transações (R24, R25, R76): fotos, documentos e comprovantes, guardados cifrados no
- * próprio banco (ADR-S2-009) — um só lugar para o backup da Sprint 3. Somem com a exclusão
+ * próprio banco — um só lugar para o backup da Sprint 3. Somem com a exclusão
  * definitiva da transação; na exclusão lógica ficam guardados para o desfazer.
  */
 export const transactionAttachments = pgTable(

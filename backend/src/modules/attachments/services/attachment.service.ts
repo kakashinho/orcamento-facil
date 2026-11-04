@@ -17,7 +17,7 @@ export interface AttachmentServiceDeps {
   attachments: AttachmentRepository;
   transactions: TransactionService;
   clock: Clock;
-  /** Cota de anexos por usuário (D-70: 100 MB). */
+  /** Cota de anexos por usuário (100 MB). */
   quotaBytes: number;
 }
 
@@ -33,7 +33,7 @@ function toDto(record: AttachmentRecord): AttachmentResponseDto {
 }
 
 /**
- * Anexos das transações (R24, R25, R76), cifrados no banco (ADR-S2-009). Só existem para
+ * Anexos das transações (R24, R25, R76), cifrados no banco. Só existem para
  * transações ativas: a transação excluída esconde os anexos, e o desfazer os traz de volta.
  */
 export class AttachmentService {
