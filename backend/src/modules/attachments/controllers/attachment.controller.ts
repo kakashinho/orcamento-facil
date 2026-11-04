@@ -34,7 +34,11 @@ export class AttachmentController {
     try {
       const part = await request.file({ limits: { fileSize: MAX_ATTACHMENT_BYTES, files: 1 } });
       if (!part || part.fieldname !== "file") throw errors.invalidField("file", "Envie o arquivo no campo `file`.");
-      file = { fileName: part.filename, content: await part.toBuffer() };
+      const content = await part.toBuffer();
+      // Dependendo de como os pedaços chegam pela rede, o leitor termina sem acusar o limite: um arquivo
+      // um pouco maior que 5 MB seria gravado cortado. Conferir a marca de corte depois da leitura evita isso.
+      if (part.file.truncated) throw fileTooLarge();
+      file = { fileName: part.filename, content };
     } catch (error) {
       throw multipartError(error);
     }
