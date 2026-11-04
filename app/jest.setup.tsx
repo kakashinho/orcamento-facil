@@ -1,5 +1,5 @@
 /* Executado depois do ambiente do Jest: limpa estados globais entre os testes. */
-import { cleanup } from "@testing-library/react-native";
+import { cleanup, configure } from "@testing-library/react-native";
 import { notifyManager } from "@tanstack/react-query";
 import { act } from "react";
 import { queryClient } from "@/data/client";
@@ -9,6 +9,10 @@ import { useServerAddress } from "@/core/config/server-address";
 import { useThemePreference } from "@/features/preferences/theme-preference";
 import { logger } from "@/core/logging/logger";
 import { secureStoreData, speechEvents } from "@/test-utils/native-mocks";
+
+// Com a suíte inteira em paralelo (ou o aparelho ocupado), 1 s é pouco para folhas animadas: um teste de
+// carteira falhou uma vez por tempo. 3 s elimina a instabilidade sem esconder falhas reais.
+configure({ asyncUtilTimeout: 3000 });
 
 // Atualizações do React Query (respostas que chegam depois) entram no ciclo do act.
 notifyManager.setNotifyFunction((fn) => {

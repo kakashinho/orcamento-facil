@@ -10,4 +10,6 @@ module.exports = {
   },
   collectCoverageFrom: ["src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/app/**", "!src/test-utils/**"],
   clearMocks: true,
+  // Telas com folhas animadas ficam lentas com a suíte inteira em paralelo; 5 s (padrão) dava falso negativo.
+  testTimeout: 15000,
 };
