@@ -8,83 +8,26 @@
  */
 import { createSign, generateKeyPairSync } from "node:crypto";
 import { ApiError } from "@/core/http/api-error";
-import { createHttpClient } from "@/core/http/http-client";
-import { createMemoryStorage } from "@/core/storage/secure-storage";
-import { createApi, type Api, type AuthResult, type Transaction } from "@/data/api";
-import { createSessionManager, type SessionManager } from "@/data/session/session-manager";
+import { type AuthResult, type Transaction } from "@/data/api";
 import { useSessionStore } from "@/data/session/session-store";
+import {
+  authHeaders,
+  BASE_URL,
+  expectApiError,
+  firstDay,
+  FOOD,
+  makeClient,
+  month,
+  PASSWORD,
+  registerUser,
+  requireApi,
+  SALARY,
+  suffix,
+  today,
+  TRANSPORT,
+} from "./support";
 
-const BASE_URL = process.env.CONTRACT_API_URL ?? "http://localhost:3100";
 const ADMIN_EMAIL = process.env.CONTRACT_ADMIN_EMAIL ?? "admin.contrato@orcamentofacil.app";
-const PASSWORD = "Contrato@2026!";
-const FOOD = "00000000-0000-4000-8000-000000000001";
-const TRANSPORT = "00000000-0000-4000-8000-000000000002";
-const SALARY = "00000000-0000-4000-8000-000000000007";
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const now = new Date();
-const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-const month = today.slice(0, 7);
-const firstDay = `${month}-01`;
-const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-
-interface Client {
-  api: Api;
-  session: SessionManager;
-  maintenance: string[];
-}
-
-/** Monta o mesmo empilhamento do app: cliente HTTP ← sessão ← API. */
-function makeClient(): Client {
-  const maintenance: string[] = [];
-  let session: SessionManager | null = null;
-  const http = createHttpClient({
-    baseUrl: BASE_URL,
-    session: {
-      getAccessToken: () => session?.getAccessToken() ?? Promise.resolve(null),
-      refresh: () => session?.refresh() ?? Promise.resolve(null),
-    },
-    onSessionExpired: () => session?.expire(),
-    onMaintenance: (message) => maintenance.push(message),
-  });
-  const api = createApi(http);
-  session = createSessionManager({
-    storage: createMemoryStorage(),
-    refreshTokens: (token) => api.auth.refresh(token),
-    revokeRefreshToken: (token) => api.auth.logout(token),
-    fetchMe: () => api.users.me(),
-    store: useSessionStore,
-  });
-  return { api, session, maintenance };
-}
-
-async function registerUser(
-  client: Client,
-  name: string,
-  email = `${name}.${suffix}@contrato.app`,
-): Promise<AuthResult> {
-  const result = await client.api.auth.register({
-    email,
-    username: `${name}_${suffix}`.slice(0, 30),
-    password: PASSWORD,
-    primaryCurrency: "BRL",
-  });
-  await client.session.begin(result);
-  return result;
-}
-
-async function expectApiError(promise: Promise<unknown>, status: number, code?: string): Promise<ApiError> {
-  const error = await promise.then(
-    () => {
-      throw new Error(`Esperava erro ${status}`);
-    },
-    (e: unknown) => e,
-  );
-  expect(error).toBeInstanceOf(ApiError);
-  expect((error as ApiError).status).toBe(status);
-  if (code) expect((error as ApiError).code).toBe(code);
-  return error as ApiError;
-}
 
 const user = makeClient();
 let auth: AuthResult;
@@ -93,11 +36,7 @@ let usdWalletId: string;
 let expense: Transaction;
 let income: Transaction;
 
-beforeAll(async () => {
-  const status = await fetch(`${BASE_URL}/api/system/status`).catch(() => null);
-  if (!status?.ok)
-    throw new Error(`API indisponível em ${BASE_URL}. Suba o backend antes (veja tests/contract/README.md).`);
-});
+beforeAll(requireApi);
 
 describe("sistema e moedas (R72, R28)", () => {
   it("status público informa a manutenção", async () => {
@@ -402,12 +341,8 @@ describe("relatórios (R41, R55, R58, R01)", () => {
   });
 
   it("devolve o PDF do extrato com autorização", async () => {
-    const http = createHttpClient({
-      baseUrl: BASE_URL,
-      session: { getAccessToken: () => user.session.getAccessToken(), refresh: () => user.session.refresh() },
-    });
     const url = user.api.reports.statementPdfUrl({ from: firstDay, to: today });
-    const response = await fetch(url, { headers: await http.authHeaders() });
+    const response = await fetch(url, { headers: await authHeaders(user) });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("application/pdf");
     const bytes = Buffer.from(await response.arrayBuffer());
