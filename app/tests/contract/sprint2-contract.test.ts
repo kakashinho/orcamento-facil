@@ -6,6 +6,7 @@
  *
  * Rode com a API no ar:  CONTRACT_API_URL=http://localhost:3100 npm run test:contract
  */
+import { randomUUID } from "node:crypto";
 import type { AppNotification, Attachment, Budget, CreateSeriesResult, Goal, Transaction, Wallet } from "@/data/api";
 import {
   addDays,
@@ -139,15 +140,18 @@ describe("categorias ocultas nos relatórios (R46)", () => {
 });
 
 describe("recorrências e parcelamentos (R37, R62)", () => {
+  const recurringKey = randomUUID();
+  const recurringBody = {
+    type: "expense",
+    amount: 59.9,
+    description: "Academia",
+    date: today,
+    frequency: "monthly",
+    notes: "Plano mensal",
+  } as const;
+
   it("registra uma recorrência e gera a 1ª ocorrência na data", async () => {
-    recurring = await user.api.series.createRecurring({
-      type: "expense",
-      amount: 59.9,
-      description: "Academia",
-      date: today,
-      frequency: "monthly",
-      notes: "Plano mensal",
-    });
+    recurring = await user.api.series.createRecurring(recurringBody, recurringKey);
     expect(recurring.series).toMatchObject({
       kind: "recurring",
       type: "expense",
@@ -172,16 +176,28 @@ describe("recorrências e parcelamentos (R37, R62)", () => {
     });
   });
 
+  it("repetir a criação com a mesma Idempotency-Key devolve a série original, sem duplicar", async () => {
+    const again = await user.api.series.createRecurring(recurringBody, recurringKey);
+    expect(again.series.id).toBe(recurring.series.id);
+    expect(again.transactions.map((t) => t.id)).toEqual(recurring.transactions.map((t) => t.id));
+    const list = await user.api.series.list();
+    expect(list.data.filter((s) => s.id === recurring.series.id)).toHaveLength(1);
+    expect(list.data.filter((s) => s.description === "Academia")).toHaveLength(1);
+  });
+
   it("recusa data final antes do início", async () => {
     const error = await expectApiError(
-      user.api.series.createRecurring({
-        type: "expense",
-        amount: 10,
-        description: "x",
-        date: today,
-        frequency: "weekly",
-        endDate: addDays(today, -1),
-      }),
+      user.api.series.createRecurring(
+        {
+          type: "expense",
+          amount: 10,
+          description: "x",
+          date: today,
+          frequency: "weekly",
+          endDate: addDays(today, -1),
+        },
+        randomUUID(),
+      ),
       422,
       "INVALID_END_DATE",
     );
@@ -189,12 +205,10 @@ describe("recorrências e parcelamentos (R37, R62)", () => {
   });
 
   it("divide o parcelamento e deixa a sobra dos centavos na 1ª parcela", async () => {
-    installments = await user.api.series.createInstallments({
-      totalAmount: 100,
-      installments: 3,
-      date: today,
-      description: "Fone",
-    });
+    installments = await user.api.series.createInstallments(
+      { totalAmount: 100, installments: 3, date: today, description: "Fone" },
+      randomUUID(),
+    );
     expect(installments.series).toMatchObject({
       kind: "installment",
       type: "expense",
@@ -276,14 +290,17 @@ describe("recorrências e parcelamentos (R37, R62)", () => {
 
   it("não gera nada antes da data e protege a carteira com série ativa", async () => {
     const card = await user.api.wallets.create({ name: `Cartão ${suffix}`, type: "credit_card" });
-    const future = await user.api.series.createRecurring({
-      type: "expense",
-      amount: 30,
-      description: "Streaming",
-      date: addDays(today, 7),
-      walletId: card.id,
-      frequency: "monthly",
-    });
+    const future = await user.api.series.createRecurring(
+      {
+        type: "expense",
+        amount: 30,
+        description: "Streaming",
+        date: addDays(today, 7),
+        walletId: card.id,
+        frequency: "monthly",
+      },
+      randomUUID(),
+    );
     expect(future.transactions).toEqual([]);
     expect(future.series).toMatchObject({ generatedCount: 0, nextDate: addDays(today, 7) });
     const summary = await user.api.wallets.summary();

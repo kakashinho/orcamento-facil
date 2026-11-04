@@ -81,7 +81,7 @@ controladas.
 | `category_preferences` | Preferência do usuário sobre uma categoria, inclusive as predefinidas: ocultar nos relatórios (R46). PK `(user_id, category_id)` |
 | `tags`, `transaction_tags` | Tags do usuário e associação N:N com PK composta (R43) |
 | `transactions` | Tipo, valor **cifrado**, data, descrição, observações **cifradas** (R57), categoria, arquivada (R52), série e número da ocorrência, exclusão lógica para o desfazer |
-| `transaction_series` | Plano da recorrência (R37) ou do parcelamento (R62): modelo da transação, frequência, valor **cifrado**, início, próxima data, quantas já foram geradas, total de parcelas ou data final, status |
+| `transaction_series` | Plano da recorrência (R37) ou do parcelamento (R62): modelo da transação, frequência, valor **cifrado**, início, próxima data, quantas já foram geradas, total de parcelas ou data final, status, chave de idempotência da criação |
 | `transfers` | Origem, destino, valores **cifrados** de saída e entrada, taxa aplicada, chave de idempotência (R54) |
 | `action_history` | Ações desfazíveis com snapshot **cifrado** e sequência estrita (R49) |
 | `budgets` | Limite mensal (R21) ou diário (R74) por categoria, **cifrado**, com vigência `valid_from`/`valid_to` (R23) |
@@ -101,7 +101,7 @@ Migrations oficiais em `drizzle/` (versionadas):
   extensão `unaccent`) e `0002_audit_theme_category_type_biometric` (tema, tipo de categoria e biometria);
 - Sprint 2: `0003_transaction_notes`, `0004_category_preferences`, `0005_budgets`, `0006_reduction_goals`,
   `0007_notifications`, `0008_savings_goals`, `0009_wallet_min_balance`, `0010_transaction_series`,
-  `0011_reminders` e `0012_attachments`. Todas só acrescentam tabelas e colunas: nenhum dado existente muda.
+  `0011_reminders`, `0012_attachments` e `0013_series_idempotency`. Todas só acrescentam tabelas e colunas: nenhum dado existente muda.
 
 Mudanças futuras = novas migrations. O teste de migrations confere a lista de tabelas, as colunas `BYTEA` dos
 dados cifrados e a idempotência (o total aplicado é o número de entradas de `drizzle/meta/_journal.json`).

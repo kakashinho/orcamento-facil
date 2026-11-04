@@ -17,7 +17,7 @@ respostas de erro possíveis. Este documento resume convenções, erros e endpoi
 | Paginação | Rolagem infinita: a resposta traz `nextCursor`; envie-o em `?cursor=`. `null` = fim |
 | Compressão | Respostas acima de 1 KB comprimidas (`Accept-Encoding: br, gzip`). Corpos podem ir com `Content-Encoding: gzip` |
 | Rastreio | Toda resposta tem `x-request-id` (o cliente pode enviar o seu) |
-| Idempotência | `POST /api/transfers` aceita `Idempotency-Key`: repetir devolve a mesma transferência (200) |
+| Idempotência | `POST /api/transfers`, `POST /api/series/recurring` e `POST /api/series/installments` aceitam `Idempotency-Key` (8 a 100 caracteres): repetir devolve o registro criado na primeira vez (200), sem duplicar |
 | Manutenção | Em manutenção, escritas respondem `503 MAINTENANCE_MODE` com mensagem para o usuário |
 | Fuso | "Hoje", o mês atual e as datas das ocorrências de séries seguem o fuso do usuário (`timezone`, padrão `America/Sao_Paulo`) |
 

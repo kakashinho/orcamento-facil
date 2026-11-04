@@ -14,6 +14,7 @@ import {
 } from "../../../infrastructure/http/common-schemas.js";
 import { SERIES_FREQUENCIES, SERIES_KINDS, SERIES_STATUSES } from "../types/series.types.js";
 import { tagName } from "./tag.schema.js";
+import { idempotencyHeadersSchema } from "./transfer.schema.js";
 import { createTransactionRequestSchema, transactionResponseSchema } from "./transaction.schema.js";
 
 const TAGS = ["Recorrências e parcelamentos"];
@@ -117,10 +118,11 @@ export const seriesRouteSchemas = {
     tags: TAGS,
     summary: "Registrar transação recorrente (R37)",
     description:
-      "Grava a 1ª ocorrência (se a data já chegou) e o plano. As próximas viram transação no dia de cada uma, no fuso do usuário — nada entra no saldo antes da data.",
+      "Grava a 1ª ocorrência (se a data já chegou) e o plano. As próximas viram transação no dia de cada uma, no fuso do usuário — nada entra no saldo antes da data. Com Idempotency-Key, repetir a requisição devolve a mesma série (200), sem duplicar.",
     security: secured,
+    headers: idempotencyHeadersSchema,
     body: createRecurringRequestSchema,
-    response: { 201: createSeriesResponseSchema },
+    response: { 201: createSeriesResponseSchema, 200: createSeriesResponseSchema },
   },
   markRecurring: {
     tags: TAGS,
@@ -135,10 +137,12 @@ export const seriesRouteSchemas = {
   createInstallments: {
     tags: TAGS,
     summary: "Registrar despesa parcelada (R62)",
-    description: "Divide o total em parcelas mensais (a sobra dos centavos fica na 1ª). Cada parcela entra no saldo na data dela.",
+    description:
+      "Divide o total em parcelas mensais (a sobra dos centavos fica na 1ª). Cada parcela entra no saldo na data dela. Com Idempotency-Key, repetir a requisição devolve o mesmo parcelamento (200), sem duplicar.",
     security: secured,
+    headers: idempotencyHeadersSchema,
     body: createInstallmentsRequestSchema,
-    response: { 201: createSeriesResponseSchema },
+    response: { 201: createSeriesResponseSchema, 200: createSeriesResponseSchema },
   },
   list: {
     tags: TAGS,

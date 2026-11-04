@@ -4,6 +4,7 @@ import type { DbTransaction, TransactionRunner } from "../../../infrastructure/d
 import type { DomainEvents } from "../../../infrastructure/events/domain-events.js";
 import type { EventLogger } from "../../../infrastructure/logging/event-logger.js";
 import { AppError, errors } from "../../../shared/errors/app-error.js";
+import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
 import { addDays, todayInTimeZone } from "../../../shared/utils/dates.js";
 import { fromCents, toCents } from "../../../shared/utils/money.js";
 import type { UserService } from "../../auth/services/user.service.js";
@@ -97,6 +98,7 @@ export class SeriesService {
     userId: string,
     state: TransactionState,
     shape: Pick<SeriesRecord, "kind" | "frequency" | "amountCents" | "installments" | "startDate" | "endDate">,
+    idempotencyKey: string | null = null,
   ): SeriesRecord {
     const now = this.deps.clock.now();
     return {
@@ -111,10 +113,45 @@ export class SeriesService {
       nextDate: shape.startDate,
       generatedCount: 0,
       status: "active",
+      idempotencyKey,
       createdAt: now,
       updatedAt: now,
       ...shape,
     };
+  }
+
+  /**
+   * Com `idempotencyKey`, repetir a criação (ex.: nova tentativa após falha de rede) devolve a série
+   * original, sem duplicar o plano nem as ocorrências geradas. Sem chave, cria sempre.
+   */
+  private async createOnce(
+    userId: string,
+    idempotencyKey: string | undefined,
+    create: () => Promise<CreateSeriesResponseDto>,
+  ): Promise<{ response: CreateSeriesResponseDto; created: boolean }> {
+    if (!idempotencyKey) return { response: await create(), created: true };
+    const replay = async () => {
+      const existing = await this.deps.series.findByIdempotencyKey(userId, idempotencyKey);
+      if (!existing) return undefined;
+      const occurrences = await this.deps.transactions.listBySeries(userId, existing.id);
+      return this.respond(
+        userId,
+        existing.id,
+        occurrences.map((occurrence) => occurrence.id),
+      );
+    };
+    const existing = await replay();
+    if (existing) return { response: existing, created: false };
+    try {
+      return { response: await create(), created: true };
+    } catch (error) {
+      // Duas requisições com a mesma chave ao mesmo tempo: a perdedora devolve a série da vencedora.
+      if (error instanceof DuplicateEntryError) {
+        const raced = await replay();
+        if (raced) return { response: raced, created: false };
+      }
+      throw error;
+    }
   }
 
   /**
@@ -168,7 +205,11 @@ export class SeriesService {
   }
 
   /** R37: transação nova já recorrente. */
-  async createRecurring(userId: string, input: CreateRecurringRequestDto): Promise<CreateSeriesResponseDto> {
+  async createRecurring(
+    userId: string,
+    input: CreateRecurringRequestDto,
+    idempotencyKey?: string,
+  ): Promise<{ response: CreateSeriesResponseDto; created: boolean }> {
     const { transactions, history, runner } = this.deps;
     const { frequency, endDate, ...transaction } = input;
     const today = await this.today(userId);
@@ -176,26 +217,33 @@ export class SeriesService {
     this.assertDateWindow(startDate, today);
     this.assertEndDate(endDate, startDate);
 
-    const result = await runner.run(async (tx) => {
-      const state = await transactions.prepareState(tx, userId, { ...transaction, date: startDate });
-      const series = this.newSeries(userId, state, {
-        kind: "recurring",
-        frequency,
-        amountCents: state.amountCents,
-        installments: null,
-        startDate,
-        endDate: endDate ?? null,
+    return this.createOnce(userId, idempotencyKey, async () => {
+      const result = await runner.run(async (tx) => {
+        const state = await transactions.prepareState(tx, userId, { ...transaction, date: startDate });
+        const series = this.newSeries(
+          userId,
+          state,
+          {
+            kind: "recurring",
+            frequency,
+            amountCents: state.amountCents,
+            installments: null,
+            startDate,
+            endDate: endDate ?? null,
+          },
+          idempotencyKey ?? null,
+        );
+        await this.deps.series.insert(series, tx);
+        const generated = await this.generateDue(tx, series, today, state.notes);
+        await history.record(tx, userId, "series.create", "series", series.id, {
+          seriesId: series.id,
+          transactionIds: generated.transactionIds,
+        });
+        return { series, transactionIds: generated.transactionIds };
       });
-      await this.deps.series.insert(series, tx);
-      const generated = await this.generateDue(tx, series, today, state.notes);
-      await history.record(tx, userId, "series.create", "series", series.id, {
-        seriesId: series.id,
-        transactionIds: generated.transactionIds,
-      });
-      return { series, transactionIds: generated.transactionIds };
+      if (result.transactionIds.length > 0) this.changed(userId, [result.series.walletId], "user");
+      return this.respond(userId, result.series.id, result.transactionIds);
     });
-    if (result.transactionIds.length > 0) this.changed(userId, [result.series.walletId], "user");
-    return this.respond(userId, result.series.id, result.transactionIds);
   }
 
   /** R37: a transação existente vira a 1ª ocorrência; as vencidas depois dela são geradas. */
@@ -241,7 +289,11 @@ export class SeriesService {
   }
 
   /** R62: despesa parcelada; cada parcela entra no saldo na data dela. */
-  async createInstallments(userId: string, input: CreateInstallmentsRequestDto): Promise<CreateSeriesResponseDto> {
+  async createInstallments(
+    userId: string,
+    input: CreateInstallmentsRequestDto,
+    idempotencyKey?: string,
+  ): Promise<{ response: CreateSeriesResponseDto; created: boolean }> {
     const { transactions, history, runner } = this.deps;
     const today = await this.today(userId);
     this.assertDateWindow(input.date, today);
@@ -250,35 +302,42 @@ export class SeriesService {
       throw errors.invalidField("totalAmount", "O valor total é pequeno demais para esse número de parcelas.");
     }
 
-    const result = await runner.run(async (tx) => {
-      const state = await transactions.prepareState(tx, userId, {
-        type: "expense",
-        amount: input.totalAmount,
-        description: input.description,
-        date: input.date,
-        walletId: input.walletId,
-        categoryId: input.categoryId,
-        tags: input.tags,
-        notes: input.notes,
+    return this.createOnce(userId, idempotencyKey, async () => {
+      const result = await runner.run(async (tx) => {
+        const state = await transactions.prepareState(tx, userId, {
+          type: "expense",
+          amount: input.totalAmount,
+          description: input.description,
+          date: input.date,
+          walletId: input.walletId,
+          categoryId: input.categoryId,
+          tags: input.tags,
+          notes: input.notes,
+        });
+        const series = this.newSeries(
+          userId,
+          state,
+          {
+            kind: "installment",
+            frequency: "monthly",
+            amountCents: totalCents,
+            installments: input.installments,
+            startDate: input.date,
+            endDate: null,
+          },
+          idempotencyKey ?? null,
+        );
+        await this.deps.series.insert(series, tx);
+        const generated = await this.generateDue(tx, series, today, state.notes);
+        await history.record(tx, userId, "series.create", "series", series.id, {
+          seriesId: series.id,
+          transactionIds: generated.transactionIds,
+        });
+        return { series, transactionIds: generated.transactionIds };
       });
-      const series = this.newSeries(userId, state, {
-        kind: "installment",
-        frequency: "monthly",
-        amountCents: totalCents,
-        installments: input.installments,
-        startDate: input.date,
-        endDate: null,
-      });
-      await this.deps.series.insert(series, tx);
-      const generated = await this.generateDue(tx, series, today, state.notes);
-      await history.record(tx, userId, "series.create", "series", series.id, {
-        seriesId: series.id,
-        transactionIds: generated.transactionIds,
-      });
-      return { series, transactionIds: generated.transactionIds };
+      if (result.transactionIds.length > 0) this.changed(userId, [result.series.walletId], "user");
+      return this.respond(userId, result.series.id, result.transactionIds);
     });
-    if (result.transactionIds.length > 0) this.changed(userId, [result.series.walletId], "user");
-    return this.respond(userId, result.series.id, result.transactionIds);
   }
 
   // ---------------------------------------------------------------- consulta

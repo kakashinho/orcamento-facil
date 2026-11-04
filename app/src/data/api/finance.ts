@@ -91,15 +91,19 @@ export function seriesApi(http: HttpClient) {
   return {
     list: (status: SeriesStatus | "all" = "active") => http.get<DataList<Series>>("/api/series", { query: { status } }),
     get: (id: string) => http.get<SeriesDetail>(`/api/series/${id}`),
-    createRecurring: (body: CreateRecurringRequest) => http.post<CreateSeriesResult>("/api/series/recurring", body),
+    /** `idempotencyKey` torna seguro repetir o envio: o servidor devolve a série já criada. */
+    createRecurring: (body: CreateRecurringRequest, idempotencyKey: string) =>
+      http.post<CreateSeriesResult>("/api/series/recurring", body, { headers: { "Idempotency-Key": idempotencyKey } }),
     /** A transação vira a 1ª ocorrência de uma recorrência. */
     markRecurring: (transactionId: string, frequency: Frequency, endDate?: string) =>
       http.post<CreateSeriesResult>(`/api/series/recurring/from-transaction/${transactionId}`, {
         frequency,
         ...(endDate ? { endDate } : {}),
       }),
-    createInstallments: (body: CreateInstallmentsRequest) =>
-      http.post<CreateSeriesResult>("/api/series/installments", body),
+    createInstallments: (body: CreateInstallmentsRequest, idempotencyKey: string) =>
+      http.post<CreateSeriesResult>("/api/series/installments", body, {
+        headers: { "Idempotency-Key": idempotencyKey },
+      }),
     update: (id: string, body: UpdateSeriesRequest) => http.patch<Series>(`/api/series/${id}`, body),
     /** Cancela as próximas ocorrências; as já registradas continuam. */
     cancel: (id: string) => http.delete(`/api/series/${id}`),

@@ -3,6 +3,8 @@ import { aad, type FieldCipher } from "../../../infrastructure/crypto/field-ciph
 import type { Database, DbTransaction } from "../../../infrastructure/database/client.js";
 import { Repository } from "../../../infrastructure/database/repository.js";
 import { transactionSeries } from "../../../infrastructure/database/schema.js";
+import { DuplicateEntryError } from "../../../shared/errors/persistence-errors.js";
+import { isUniqueViolation } from "../../../shared/errors/pg-errors.js";
 import type { TransactionType } from "../types/transaction.types.js";
 import type { SeriesChanges, SeriesFrequency, SeriesKind, SeriesRecord, SeriesStatus } from "../types/series.types.js";
 
@@ -36,12 +38,31 @@ export class SeriesRepository extends Repository {
       nextDate: row.nextDate,
       generatedCount: row.generatedCount,
       status: row.status as SeriesStatus,
+      idempotencyKey: row.idempotencyKey,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
 
   async insert(record: SeriesRecord, tx: DbTransaction): Promise<void> {
+    try {
+      await this.insertRow(record, tx);
+    } catch (error) {
+      if (isUniqueViolation(error, "transaction_series_user_idempotency_uq")) throw new DuplicateEntryError("idempotencyKey");
+      throw error;
+    }
+  }
+
+  /** Série criada antes com esta chave de idempotência, se houver. */
+  async findByIdempotencyKey(userId: string, key: string): Promise<SeriesRecord | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(transactionSeries)
+      .where(and(eq(transactionSeries.userId, userId), eq(transactionSeries.idempotencyKey, key)));
+    return row ? this.toRecord(row) : undefined;
+  }
+
+  private async insertRow(record: SeriesRecord, tx: DbTransaction): Promise<void> {
     await tx.insert(transactionSeries).values({
       id: record.id,
       userId: record.userId,
@@ -60,6 +81,7 @@ export class SeriesRepository extends Repository {
       nextDate: record.nextDate,
       generatedCount: record.generatedCount,
       status: record.status,
+      idempotencyKey: record.idempotencyKey,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     });

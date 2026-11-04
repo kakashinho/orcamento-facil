@@ -31,8 +31,8 @@ describe("recorrências e parcelamentos (R37, R62)", () => {
     await ctx.close();
   });
 
-  const recurring = (user: TestUser, body: Record<string, unknown>) =>
-    user.api.post("/api/series/recurring", { type: "expense", amount: 100, description: "Academia", frequency: "monthly", ...body });
+  const recurring = (user: TestUser, body: Record<string, unknown>, headers?: Record<string, string>) =>
+    user.api.post("/api/series/recurring", { type: "expense", amount: 100, description: "Academia", frequency: "monthly", ...body }, headers);
 
   it("recorrência começando hoje: 1 transação agora, a próxima só na data", async () => {
     const user = await registerUser(ctx.app);
@@ -120,6 +120,47 @@ describe("recorrências e parcelamentos (R37, R62)", () => {
     expect(salary.json().code).toBe("CATEGORY_TYPE_MISMATCH");
     expect((await user.api.post("/api/series/installments", { totalAmount: 100, installments: 1, date: "2026-03-10", description: "x" })).statusCode).toBe(400);
     expect((await user.api.post("/api/series/installments", { totalAmount: 0.01, installments: 2, date: "2026-03-10", description: "x" })).statusCode).toBe(400);
+  });
+
+  it("Idempotency-Key: repetir a criação devolve a mesma série, sem duplicar nem gerar de novo", async () => {
+    const user = await registerUser(ctx.app);
+    const headers = { "idempotency-key": "recorrencia-chave-1" };
+    const first = await recurring(user, { description: "Streaming", amount: 40 }, headers);
+    expect(first.statusCode).toBe(201);
+    const again = await recurring(user, { description: "Streaming", amount: 40 }, headers);
+    expect(again.statusCode).toBe(200);
+    expect(again.json().series.id).toBe(first.json().series.id);
+    expect(again.json().transactions.map((t: { id: string }) => t.id)).toEqual(first.json().transactions.map((t: { id: string }) => t.id));
+
+    const list = (await user.api.get("/api/series")).json();
+    expect(list.data).toHaveLength(1);
+    expect(await walletBalance(user, first.json().series.wallet.id)).toBe(-40);
+
+    // Outra chave é outra criação; sem chave, sempre cria.
+    expect((await recurring(user, { description: "Streaming", amount: 40 }, { "idempotency-key": "recorrencia-chave-2" })).statusCode).toBe(201);
+    expect((await recurring(user, { description: "Streaming", amount: 40 })).statusCode).toBe(201);
+    expect((await user.api.get("/api/series")).json().data).toHaveLength(3);
+
+    // A chave de um usuário não vale para outro.
+    const other = await registerUser(ctx.app);
+    expect((await recurring(other, { description: "Streaming", amount: 40 }, headers)).statusCode).toBe(201);
+  });
+
+  it("Idempotency-Key: parcelamento repetido e requisições simultâneas criam uma só vez", async () => {
+    const user = await registerUser(ctx.app);
+    const headers = { "idempotency-key": "parcelas-chave-1" };
+    const body = { totalAmount: 100, installments: 3, date: "2026-01-10", description: "Cadeira" };
+    const [a, b] = await Promise.all([
+      user.api.post("/api/series/installments", body, headers),
+      user.api.post("/api/series/installments", body, headers),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 201]);
+    expect(a.json().series.id).toBe(b.json().series.id);
+    expect((await user.api.get("/api/series?status=all")).json().data).toHaveLength(1);
+    expect(await walletBalance(user, a.json().series.wallet.id)).toBe(-100);
+
+    const short = await user.api.post("/api/series/installments", body, { "idempotency-key": "curta" });
+    expect(short.statusCode).toBe(400);
   });
 
   it("desfazer a criação exclui as transações, restaura o saldo e cancela a série", async () => {

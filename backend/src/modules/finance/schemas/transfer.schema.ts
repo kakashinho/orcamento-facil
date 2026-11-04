@@ -45,7 +45,7 @@ export const idempotencyHeadersSchema = z.object({
     .min(8, "Idempotency-Key deve ter pelo menos 8 caracteres.")
     .max(100, "Idempotency-Key deve ter no máximo 100 caracteres.")
     .optional()
-    .meta({ description: "Chave única por tentativa (ex.: UUID): repetir a requisição devolve a mesma transferência" }),
+    .meta({ description: "Chave única por tentativa (ex.: UUID): repetir a requisição devolve o registro criado na primeira vez" }),
 });
 
 export const listTransfersQuerySchema = z

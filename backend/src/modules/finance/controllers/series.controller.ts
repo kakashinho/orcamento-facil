@@ -5,11 +5,17 @@ import type { SeriesService } from "../services/series.service.js";
 
 type Schemas = typeof seriesRouteSchemas;
 
+/** Criação com 201; 200 quando a mesma Idempotency-Key já tinha criado a série. */
 export class SeriesController {
   constructor(private readonly series: SeriesService) {}
 
   createRecurring = async (request: ZodRequest<Schemas["createRecurring"]>, reply: ZodReply<Schemas["createRecurring"]>) => {
-    return reply.status(201).send(await this.series.createRecurring(requireAuth(request).userId, request.body));
+    const result = await this.series.createRecurring(
+      requireAuth(request).userId,
+      request.body,
+      request.headers["idempotency-key"],
+    );
+    return reply.status(result.created ? 201 : 200).send(result.response);
   };
 
   markRecurring = async (request: ZodRequest<Schemas["markRecurring"]>, reply: ZodReply<Schemas["markRecurring"]>) => {
@@ -21,7 +27,12 @@ export class SeriesController {
     request: ZodRequest<Schemas["createInstallments"]>,
     reply: ZodReply<Schemas["createInstallments"]>,
   ) => {
-    return reply.status(201).send(await this.series.createInstallments(requireAuth(request).userId, request.body));
+    const result = await this.series.createInstallments(
+      requireAuth(request).userId,
+      request.body,
+      request.headers["idempotency-key"],
+    );
+    return reply.status(result.created ? 201 : 200).send(result.response);
   };
 
   list = async (request: ZodRequest<Schemas["list"]>, reply: ZodReply<Schemas["list"]>) => {

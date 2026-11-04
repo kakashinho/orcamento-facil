@@ -1,5 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { randomUUID } from "expo-crypto";
+import { useRef } from "react";
 import type {
   CreateCategoryRequest,
   CreateInstallmentsRequest,
@@ -199,19 +200,46 @@ export function useSeriesList(status: SeriesStatus | "all" = "active") {
   return useQuery({ queryKey: queryKeys.series(status), queryFn: () => api.series.list(status).then((r) => r.data) });
 }
 
+/**
+ * Chave de idempotência da criação: repetir o mesmo envio (nova tentativa depois de uma falha de rede)
+ * reaproveita a chave, e o servidor não duplica a série; outro conteúdo ganha chave nova, e uma criação
+ * concluída zera a chave, para que registrar a mesma coisa de novo seja uma nova série.
+ */
+function useCreationKey() {
+  const last = useRef<{ signature: string; key: string } | null>(null);
+  return {
+    keyFor: (body: unknown) => {
+      const signature = JSON.stringify(body);
+      if (last.current?.signature !== signature) last.current = { signature, key: randomUUID() };
+      return last.current.key;
+    },
+    done: () => {
+      last.current = null;
+    },
+  };
+}
+
 export function useCreateRecurring() {
   const queryClient = useQueryClient();
+  const creation = useCreationKey();
   return useMutation({
-    mutationFn: (body: CreateRecurringRequest) => api.series.createRecurring(body),
-    onSuccess: () => invalidateFinance(queryClient),
+    mutationFn: (body: CreateRecurringRequest) => api.series.createRecurring(body, creation.keyFor(body)),
+    onSuccess: () => {
+      creation.done();
+      return invalidateFinance(queryClient);
+    },
   });
 }
 
 export function useCreateInstallments() {
   const queryClient = useQueryClient();
+  const creation = useCreationKey();
   return useMutation({
-    mutationFn: (body: CreateInstallmentsRequest) => api.series.createInstallments(body),
-    onSuccess: () => invalidateFinance(queryClient),
+    mutationFn: (body: CreateInstallmentsRequest) => api.series.createInstallments(body, creation.keyFor(body)),
+    onSuccess: () => {
+      creation.done();
+      return invalidateFinance(queryClient);
+    },
   });
 }
 

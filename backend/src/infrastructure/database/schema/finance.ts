@@ -143,10 +143,13 @@ export const transactionSeries = pgTable(
     nextDate: date("next_date", { mode: "string" }),
     generatedCount: integer("generated_count").notNull().default(0),
     status: varchar("status", { length: 10 }).notNull().default("active"),
+    // Chave enviada pelo app (Idempotency-Key): repetir a criação devolve a mesma série.
+    idempotencyKey: varchar("idempotency_key", { length: 100 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    uniqueIndex("transaction_series_user_idempotency_uq").on(t.userId, t.idempotencyKey),
     check("transaction_series_kind_check", sql`${t.kind} in ('recurring', 'installment')`),
     check("transaction_series_type_check", sql`${t.type} in ('income', 'expense')`),
     check("transaction_series_frequency_check", sql`${t.frequency} in ('weekly', 'monthly', 'yearly')`),

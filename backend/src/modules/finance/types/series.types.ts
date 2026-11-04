@@ -28,6 +28,8 @@ export interface SeriesRecord {
   nextDate: string | null;
   generatedCount: number;
   status: SeriesStatus;
+  /** Chave de idempotência da criação (null = sem chave, ex.: marcada a partir de uma transação). */
+  idempotencyKey: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

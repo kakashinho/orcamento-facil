@@ -128,6 +128,44 @@ describe("repetir e parcelar no formulário (R37, R62)", () => {
     expect(await screen.findByText("Recorrência registrada!")).toBeOnTheScreen();
   });
 
+  it("repetir o envio depois de uma falha reaproveita a Idempotency-Key; mudar o conteúdo gera outra", async () => {
+    let attempts = 0;
+    const api = setupApi().on("POST", "/api/series/recurring", () => {
+      attempts += 1;
+      return attempts === 1
+        ? apiError(500, "INTERNAL_ERROR", "Erro interno.")
+        : { status: 201, body: { series: series(), transactions: [transaction({ series: null })] } };
+    });
+    const onClose = await openForm();
+    await fillExpense();
+    await fireEvent.press(screen.getByRole("tab", { name: "Mensal" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/series/recurring")).toHaveLength(1));
+    expect(onClose).not.toHaveBeenCalled();
+
+    await fireEvent.press(await screen.findByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const [first, second] = api.callsTo("POST", "/api/series/recurring");
+    expect(first!.headers["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second!.headers["idempotency-key"]).toBe(first!.headers["idempotency-key"]);
+  });
+
+  it("alterar o formulário depois de uma falha envia outra Idempotency-Key", async () => {
+    const api = setupApi().on("POST", "/api/series/installments", apiError(500, "INTERNAL_ERROR", "Erro interno."));
+    await openForm();
+    await fillExpense("120");
+    await fireEvent.press(screen.getByRole("switch", { name: "Parcelar" }));
+    await fireEvent.changeText(screen.getByLabelText("Número de parcelas"), "4");
+    await fireEvent.press(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/series/installments")).toHaveLength(1));
+
+    await fireEvent.changeText(screen.getByLabelText("Número de parcelas"), "6");
+    await fireEvent.press(await screen.findByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(api.callsTo("POST", "/api/series/installments")).toHaveLength(2));
+    const [first, second] = api.callsTo("POST", "/api/series/installments");
+    expect(second!.headers["idempotency-key"]).not.toBe(first!.headers["idempotency-key"]);
+  });
+
   it("Parcelar mostra a prévia com a sobra na 1ª e envia o total para a rota de parcelamento", async () => {
     const api = setupApi().on("POST", "/api/series/installments", {
       status: 201,
