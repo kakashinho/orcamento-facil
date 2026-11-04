@@ -52,6 +52,28 @@ o git nem para o log.
 > **Banco de desenvolvimento antigo:** se o volume `postgres_data` foi criado com o protótipo
 > anterior (tabela `users` com id serial), recrie-o com `docker compose down -v` antes de migrar.
 
+## Dados de demonstração
+
+Para apresentar as funcionalidades sem digitar nada, o script `scripts/seed-demo.ts` cria uma conta com seis
+meses de histórico e preenche tudo o que a Sprint 2 entregou: carteiras (uma em dólar e uma com saldo
+mínimo), recorrências e parcelamentos, orçamentos e metas de redução em estados diferentes, metas de
+economia (andamento, quase concluída, atingida, com prazo próximo e cancelada), lembretes de contas, anexos
+e os avisos que as regras geram sozinhas. Tudo entra pela API, então os valores ficam cifrados e os avisos
+nascem como no uso real. Com a pilha do Docker no ar:
+
+```bash
+docker compose up -d --build
+npm run demo:seed -- --reset      # recria a conta demo@orcamentofacil.app (senha Apresenta@2026)
+```
+
+Opções: `--api <url>` (padrão `http://localhost`, ou `DEMO_API_URL`), `--db <url>` (padrão o PostgreSQL do
+compose, ou `DATABASE_URL`; usada só para apagar a conta no `--reset` e para recuar a vigência dos
+orçamentos, que a API não permite), `--out <pasta>` (CSVs; padrão `../apresentacao/csv`), `--only-csv`
+(só regera os CSVs do que já está no banco) e `--skip-jobs` (não roda as tarefas agendadas). Os valores são
+gerados de forma determinística, relativos à data de hoje; rode `--reset` de novo para reposicionar o
+"mês corrente" no dia da apresentação. O script também cria a conta de administração
+`admin@orcamentofacil.local` para disparar as tarefas agendadas uma vez.
+
 ## Scripts
 
 | Script | O que faz |
@@ -59,6 +81,7 @@ o git nem para o log.
 | `npm run dev` | API com recarga automática (tsx) |
 | `npm run routes` | Lista todas as rotas (método, caminho, se exige login, descrição) |
 | `npm run mail:test -- <e-mail>` | Envia um e-mail de recuperação de teste pelo SMTP do `.env` (sem banco) |
+| `npm run demo:seed` | Cria a conta de demonstração com meses de dados e gera os CSVs (veja "Dados de demonstração") |
 | `npm run build` / `npm start` | Compila para `dist/` e executa |
 | `npm run typecheck` | Verificação de tipos |
 | `npm run test:unit` | Testes unitários (sem banco) |
