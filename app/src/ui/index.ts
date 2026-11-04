@@ -4,6 +4,7 @@
  */
 export * from "./theme";
 export { Icon, type IconName, type IconProps } from "./icons/icon";
+export { Badge, badgeLabel, type BadgeProps } from "./components/badge";
 export { Button, type ButtonProps, type ButtonVariant } from "./components/button";
 export * from "./charts";
 export { Card } from "./components/card";

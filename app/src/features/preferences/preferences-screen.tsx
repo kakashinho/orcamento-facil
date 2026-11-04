@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { ScrollView, StyleSheet } from "react-native";
 import { env } from "@/core/config/env";
 import { useApiUrl } from "@/core/config/server-address";
 import { errorMessage } from "@/core/http/api-error";
@@ -9,27 +9,21 @@ import { api, session } from "@/data/client";
 import { useSetMaintenance, useUpdateProfile } from "@/data/queries/account";
 import { useCurrentUser } from "@/data/session/session-store";
 import { useMaintenance } from "@/data/system/maintenance-store";
-import {
-  Button,
-  Card,
-  ContentContainer,
-  Dialog,
-  Icon,
-  SegmentedControl,
-  Switch,
-  Text,
-  useTheme,
-  withAlpha,
-  type IconName,
-} from "@/ui";
+import { Button, ContentContainer, Dialog, Icon, SegmentedControl, Switch, Text, useTheme } from "@/ui";
 import { disableBiometric, enableBiometric } from "../auth/biometric-auth";
 import { useStoredBiometric } from "../auth/use-auth";
 import { useFeedback } from "../feedback/feedback-provider";
+import { unregisterPushDevice } from "../notifications/push-registration";
 import { CurrencyPicker } from "../wallets/components/currency-picker";
 import { ChangePasswordSheet } from "./change-password-sheet";
+import { NotificationsSection } from "./notifications-section";
+import { Row, Section } from "./preference-rows";
 import { useThemeControls } from "./use-theme-toggle";
 
-/** Preferências: tema (R42), moeda principal (R28), conta e biometria (R40), dados (R52) e manutenção (R72). */
+/**
+ * Preferências: tema (R42), moeda principal (R28), notificações (R18), conta e biometria (R40), dados (R52)
+ * e manutenção (R72).
+ */
 export function PreferencesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -64,7 +58,11 @@ export function PreferencesScreen() {
   });
 
   const logoutAll = useMutation({
-    mutationFn: () => api.auth.logoutAll(),
+    // O aparelho sai do push antes: depois do logout geral a sessão já não vale para o descadastro.
+    mutationFn: async () => {
+      await unregisterPushDevice();
+      await api.auth.logoutAll();
+    },
     onSettled: () => void session.signOut("logout"),
   });
 
@@ -117,6 +115,8 @@ export function PreferencesScreen() {
             disabled={updateProfile.isPending}
           />
         </Section>
+
+        <NotificationsSection />
 
         <Section title="Conta">
           <Row icon="person" title={user?.username ?? ""} subtitle={user?.email ?? ""}>
@@ -210,65 +210,9 @@ export function PreferencesScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <Card style={styles.card}>
-      <Text variant="bodySmall" weight="medium" color="onSurfaceVariant">
-        {title}
-      </Text>
-      {children}
-    </Card>
-  );
-}
-
-function Row({
-  icon,
-  title,
-  subtitle,
-  children,
-  onPress,
-}: {
-  icon: IconName;
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  onPress?: () => void;
-}) {
-  const { colors } = useTheme();
-  const content = (
-    <>
-      <Icon name={icon} size={22} />
-      <View style={styles.rowText}>
-        <Text>{title}</Text>
-        {subtitle ? (
-          <Text variant="label" color="onSurfaceVariant">
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-      {children}
-    </>
-  );
-  if (!onPress) return <View style={styles.row}>{content}</View>;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      onPress={onPress}
-      android_ripple={{ color: withAlpha(colors.onSurface, 0.08) }}
-      style={styles.row}
-    >
-      {content}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   scroll: { paddingBottom: 32 },
   content: { gap: 16, paddingTop: 12 },
-  card: { padding: 16, gap: 8 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
-  rowText: { flex: 1 },
   about: { marginTop: 8 },
   dialogBody: { gap: 12 },
 });

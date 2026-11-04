@@ -43,7 +43,7 @@ export function renderWithProviders(ui: ReactElement, options: { scheme?: ColorS
   );
 }
 
-/** Backend falso com respostas padrão das consultas mais usadas. */
+/** Backend falso com respostas padrão das consultas mais usadas (inclui o sino e as preferências de aviso). */
 export function setupApi(): FakeApi {
   queryClient.setDefaultOptions({
     queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
@@ -81,6 +81,16 @@ export function setupApi(): FakeApi {
       },
     })
     .on("POST", "/api/categories/suggest", { body: { suggestions: [] } })
+    .on("GET", "/api/notifications/unread-count", { body: { count: 0 } })
+    .on("GET", "/api/notifications/settings", {
+      body: {
+        dailyReminderEnabled: true,
+        dailyReminderHour: 20,
+        goalRemindersEnabled: true,
+        billRemindersEnabled: true,
+        alertsPushEnabled: true,
+      },
+    })
     .install();
 }
 

@@ -14,6 +14,7 @@ import { useSystemStatus } from "@/data/queries/account";
 import { useSessionStore } from "@/data/session/session-store";
 import { palettes, ThemeProvider } from "@/ui";
 import { FeedbackProvider } from "../feedback/feedback-provider";
+import { showNotificationsInForeground } from "../notifications/native-notifications";
 import { useResolvedScheme, useThemePreference } from "../preferences/theme-preference";
 
 /** Provedores globais: área segura, cache de dados (React Query). */
@@ -27,7 +28,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
 /**
  * Inicialização e navegação raiz: restaura a sessão (R03), aplica o tema (R42), acompanha a
- * manutenção (R72) e protege as rotas — sem sessão, só as telas de acesso ficam disponíveis.
+ * manutenção (R72), mostra os pushes que chegam com o app aberto (R18) e protege as rotas — sem
+ * sessão, só as telas de acesso ficam disponíveis.
  */
 export function RootNavigator() {
   const scheme = useResolvedScheme();
@@ -45,6 +47,7 @@ export function RootNavigator() {
   useSystemStatus();
 
   useEffect(() => {
+    showNotificationsInForeground();
     void useThemePreference.getState().hydrate();
     // O endereço salvo vale já na restauração da sessão (que chama a API).
     void useServerAddress

@@ -31,7 +31,10 @@ import { useCurrencyName } from "./components/currency-picker";
 import { WalletAvatar } from "./components/wallet-picker";
 import { ConverterDialog } from "./converter-dialog";
 
-/** Carteiras (R53) com saldo de cada uma (R55), valor na moeda principal (R28/R29) e transferências (R54). */
+/**
+ * Carteiras (R53) com saldo de cada uma (R55), valor na moeda principal (R28/R29), selo de saldo abaixo do
+ * mínimo (R78) e transferências (R54).
+ */
 export function WalletsScreen() {
   const { colors } = useTheme();
   const layout = useResponsiveLayout();
@@ -144,7 +147,9 @@ function WalletCard({
   onTransfer: () => void;
   onEdit: () => void;
 }) {
+  const { colors } = useTheme();
   const currencyName = useCurrencyName();
+  const below = wallet.minBalance !== null && wallet.balance < wallet.minBalance;
   return (
     <Card style={styles.card} testID={`wallet-${wallet.id}`}>
       <View style={styles.cardRow}>
@@ -159,6 +164,23 @@ function WalletCard({
           <Text variant="label" color="onSurfaceVariant" numberOfLines={1}>
             {currencyName(wallet.currency)}
           </Text>
+          {wallet.minBalance !== null && below ? (
+            <View
+              testID={`wallet-${wallet.id}-below-minimum`}
+              accessible
+              accessibilityLabel={`Saldo abaixo do mínimo de ${formatMoney(wallet.minBalance, wallet.currency)}`}
+              style={[styles.belowTag, { backgroundColor: colors.errorContainer }]}
+            >
+              <Icon name="warning" size={14} color="onErrorContainer" />
+              <Text variant="caption" weight="medium" color="onErrorContainer">
+                Abaixo do mínimo
+              </Text>
+            </View>
+          ) : wallet.minBalance !== null ? (
+            <Text variant="caption" color="onSurfaceVariant" numberOfLines={1}>
+              Mínimo: {formatMoney(wallet.minBalance, wallet.currency)}
+            </Text>
+          ) : null}
         </View>
         <View style={styles.amounts}>
           <Text mono variant="titleMedium" color={wallet.balance < 0 ? "error" : "onSurface"} numberOfLines={1}>
@@ -265,6 +287,16 @@ const styles = StyleSheet.create({
   cardRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   shrink: { flexShrink: 1 },
+  belowTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radii.full,
+  },
   flex: { flex: 1 },
   amounts: { alignItems: "flex-end", maxWidth: "50%" },
   cardDivider: { marginTop: 12, marginBottom: 4 },

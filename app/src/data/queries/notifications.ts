@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateReminderRequest, NotificationSettings, UpdateReminderRequest } from "../api/types";
+import type { CreateReminderRequest, NotificationSettings, Overview, UpdateReminderRequest } from "../api/types";
 import { api } from "../client";
 import { queryKeys } from "./keys";
 
@@ -16,11 +16,16 @@ export function useNotificationsInfinite(unread = false) {
   });
 }
 
-/** Contador do sino: consulta a cada minuto e ao voltar ao app (foco gerenciado pelo React Query). */
+/**
+ * Contador do sino: consulta a cada minuto e ao voltar ao app (foco gerenciado pelo React Query).
+ * Enquanto a primeira resposta não chega, usa o número que veio no resumo do Início (`overview`).
+ */
 export function useUnreadCount(enabled = true) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.unreadCount,
     queryFn: () => api.notifications.unreadCount().then((r) => r.count),
+    placeholderData: () => queryClient.getQueryData<Overview>(queryKeys.overview())?.unreadNotifications,
     refetchInterval: UNREAD_POLL_MS,
     staleTime: 15_000,
     enabled,

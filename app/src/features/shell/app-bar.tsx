@@ -1,16 +1,26 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { session } from "@/data/client";
-import { Button, Dialog, Icon, IconButton, radii, Text, useResponsiveLayout, useTheme } from "@/ui";
+import { useUnreadCount } from "@/data/queries/notifications";
+import { Badge, Button, Dialog, Icon, IconButton, radii, Text, useResponsiveLayout, useTheme } from "@/ui";
 import { useThemeControls } from "../preferences/use-theme-toggle";
 
-/** Barra superior: marca, alternância de tema (R42) e saída da conta. */
+/** Rótulo do sino para leitores de tela, com a quantidade de não lidas (R22). */
+export function bellLabel(count: number): string {
+  if (count < 1) return "Notificações";
+  return count === 1 ? "Notificações, 1 não lida" : `Notificações, ${count} não lidas`;
+}
+
+/** Barra superior: marca, sino de notificações com o contador de não lidas (R22), tema (R42) e saída da conta. */
 export function AppBar() {
+  const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const { scheme, toggle } = useThemeControls();
+  const unread = useUnreadCount().data ?? 0;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
@@ -33,6 +43,15 @@ export function AppBar() {
           </Text>
         </View>
         <View style={styles.actions}>
+          <View>
+            <IconButton
+              name={unread > 0 ? "notifications_active" : "notifications"}
+              onPress={() => router.navigate("/notifications")}
+              accessibilityLabel={bellLabel(unread)}
+              testID="notifications-bell"
+            />
+            <Badge count={unread} style={styles.badge} testID="notifications-badge" />
+          </View>
           <IconButton
             name={scheme === "dark" ? "light_mode" : "dark_mode"}
             onPress={toggle}
@@ -66,4 +85,5 @@ const styles = StyleSheet.create({
   logo: { width: 32, height: 32, borderRadius: radii.full, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 15 },
   actions: { flexDirection: "row", alignItems: "center" },
+  badge: { position: "absolute", top: 2, right: 2 },
 });

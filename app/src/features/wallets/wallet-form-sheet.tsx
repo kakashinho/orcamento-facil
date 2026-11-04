@@ -22,7 +22,19 @@ export function parseSignedAmount(text: string): number | null {
   return value === null ? null : negative ? -value : value;
 }
 
-/** Criar (R53) ou editar uma carteira, com moeda própria (R56). Remontada (key) a cada abertura. */
+/**
+ * Saldo mínimo (R78): vazio = sem aviso (`null`); aceita negativo (ex.: limite do cartão de crédito).
+ * Devolve `undefined` quando o texto não é um valor válido.
+ */
+export function parseMinBalance(text: string): number | null | undefined {
+  if (!text.trim()) return null;
+  return parseSignedAmount(text) ?? undefined;
+}
+
+/**
+ * Criar (R53) ou editar uma carteira, com moeda própria (R56) e saldo mínimo opcional para o aviso de
+ * saldo baixo (R78). Remontada (key) a cada abertura.
+ */
 export function WalletFormSheet({
   open,
   editing,
@@ -44,6 +56,9 @@ export function WalletFormSheet({
   const [type, setType] = useState<WalletType>(editing?.type ?? "checking");
   const [currency, setCurrency] = useState(editing?.currency ?? user?.primaryCurrency ?? "BRL");
   const [initial, setInitial] = useState(editing ? formatAmountInput(editing.initialBalance) : "");
+  const [minimum, setMinimum] = useState(
+    editing?.minBalance !== null && editing?.minBalance !== undefined ? formatAmountInput(editing.minBalance) : "",
+  );
   const [isDefault, setIsDefault] = useState(editing?.isDefault ?? false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -61,6 +76,8 @@ export function WalletFormSheet({
     if (!name.trim()) next.name = "Informe o nome da carteira.";
     const initialBalance = parseSignedAmount(initial);
     if (initialBalance === null) next.initialBalance = "Informe um valor válido, com até duas casas decimais.";
+    const minBalance = parseMinBalance(minimum);
+    if (minBalance === undefined) next.minBalance = "Informe um valor válido, com até duas casas decimais.";
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -70,6 +87,7 @@ export function WalletFormSheet({
         ...(type !== editing.type ? { type } : {}),
         ...(currency !== editing.currency ? { currency } : {}),
         ...(initialBalance !== editing.initialBalance ? { initialBalance: initialBalance ?? 0 } : {}),
+        ...(minBalance !== undefined && minBalance !== editing.minBalance ? { minBalance } : {}),
         ...(isDefault && !editing.isDefault ? { isDefault: true as const } : {}),
       };
       if (Object.keys(body).length === 0) return onClose();
@@ -86,7 +104,14 @@ export function WalletFormSheet({
       return;
     }
     create.mutate(
-      { name: name.trim(), type, currency, initialBalance: initialBalance ?? 0, isDefault },
+      {
+        name: name.trim(),
+        type,
+        currency,
+        initialBalance: initialBalance ?? 0,
+        isDefault,
+        ...(minBalance !== null && minBalance !== undefined ? { minBalance } : {}),
+      },
       {
         onSuccess: () => {
           onClose();
@@ -162,6 +187,16 @@ export function WalletFormSheet({
             placeholder="0,00"
             helper="Use valor negativo para dívidas, como fatura de cartão."
             error={errors.initialBalance}
+          />
+          <TextField
+            label={`Saldo mínimo (${currency}, opcional)`}
+            icon="notifications"
+            value={minimum}
+            onChangeText={setMinimum}
+            keyboardType="numbers-and-punctuation"
+            placeholder="Sem aviso"
+            helper="Avisamos quando o saldo ficar abaixo deste valor. Deixe vazio para não avisar."
+            error={errors.minBalance}
           />
           <View style={styles.switchRow}>
             <View style={styles.flex}>

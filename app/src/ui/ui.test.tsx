@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { useState } from "react";
 import {
+  Badge,
+  badgeLabel,
   Button,
   Chip,
   Dialog,
@@ -91,6 +93,21 @@ describe("design system (R80)", () => {
     expect(screen.getByText("Excluir transação?")).toBeOnTheScreen();
     expect(screen.getByText("Esta ação pode ser desfeita.")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Excluir" })).toBeOnTheScreen();
+  });
+
+  it("Badge mostra a contagem, limita em 99+ e some com zero (R22)", async () => {
+    expect(badgeLabel(7)).toBe("7");
+    expect(badgeLabel(100)).toBe("99+");
+    await themed(
+      <>
+        <Badge count={7} testID="sete" />
+        <Badge count={250} testID="muitos" />
+        <Badge count={0} testID="zero" />
+      </>,
+    );
+    expect(screen.getByTestId("sete", { includeHiddenElements: true })).toHaveTextContent("7");
+    expect(screen.getByTestId("muitos", { includeHiddenElements: true })).toHaveTextContent("99+");
+    expect(screen.queryByTestId("zero", { includeHiddenElements: true })).toBeNull();
   });
 });
 

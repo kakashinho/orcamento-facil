@@ -113,6 +113,33 @@ describe("sessão JWT (R03, R87)", () => {
     await expect(manager.getAccessToken()).resolves.toBeNull();
   });
 
+  it("antes de sair executa as tarefas registradas, com a sessão ainda válida, sem travar se falharem (R18)", async () => {
+    const order: string[] = [];
+    const revokeRefreshToken = jest.fn(async () => {
+      order.push("revoke");
+    });
+    const { manager, storage } = setup({ revokeRefreshToken });
+    await manager.begin(authResult);
+    const ok = jest.fn(async () => {
+      order.push(`task:${storage.dump()[storageKeys.refreshToken]}`);
+    });
+    const failing = jest.fn(async () => {
+      throw new ApiError(0, NETWORK_ERROR, "Sem conexão");
+    });
+    manager.onBeforeSignOut(ok);
+    const remove = manager.onBeforeSignOut(failing);
+    await manager.signOut("logout");
+    expect(order).toEqual(["task:refresh-1", "revoke"]);
+    expect(failing).toHaveBeenCalled();
+    expect(useSessionStore.getState()).toMatchObject({ status: "signedOut", signedOutReason: "logout" });
+
+    remove();
+    await manager.begin(authResult);
+    await manager.signOut("logout");
+    expect(ok).toHaveBeenCalledTimes(2);
+    expect(failing).toHaveBeenCalledTimes(1);
+  });
+
   it("sessão revogada pela API volta ao login com aviso de expiração", async () => {
     const { manager } = setup();
     await manager.begin(authResult);

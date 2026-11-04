@@ -26,7 +26,14 @@ export interface SessionManager extends SessionTokens {
   signOut(reason?: SignedOutReason): Promise<void>;
   /** A API recusou a sessão (revogada/expirada): volta ao login sem chamar o servidor. */
   expire(): void;
+  /**
+   * Tarefa executada no "Sair", antes de revogar a sessão (o token ainda vale) — ex.: descadastrar o
+   * aparelho do push (R18). Falhas não impedem a saída. Devolve a função que remove a tarefa.
+   */
+  onBeforeSignOut(task: BeforeSignOutTask): () => void;
 }
+
+export type BeforeSignOutTask = () => Promise<void>;
 
 /** Renova o access token quando faltar menos que isso para vencer. */
 const REFRESH_MARGIN_MS = 30_000;
@@ -42,6 +49,7 @@ export function createSessionManager(deps: SessionDeps): SessionManager {
   let accessToken: string | null = null;
   let expiresAt = 0;
   let inflight: Promise<string | null> | null = null;
+  const beforeSignOut = new Set<BeforeSignOutTask>();
 
   function applyTokens(tokens: AuthTokens) {
     accessToken = tokens.accessToken;
@@ -124,6 +132,13 @@ export function createSessionManager(deps: SessionDeps): SessionManager {
     async signOut(reason = "logout") {
       const stored = await deps.storage.getItem(storageKeys.refreshToken);
       if (stored && reason === "logout") {
+        await Promise.all(
+          [...beforeSignOut].map((task) =>
+            task().catch((error) =>
+              deps.logger?.warn("auth.before_sign_out_failed", { code: isApiError(error) ? error.code : "UNKNOWN" }),
+            ),
+          ),
+        );
         await deps
           .revokeRefreshToken(stored)
           .catch((error) =>
@@ -137,6 +152,13 @@ export function createSessionManager(deps: SessionDeps): SessionManager {
     expire() {
       if (deps.store.getState().status !== "signedIn") return;
       void clearLocal("expired");
+    },
+
+    onBeforeSignOut(task) {
+      beforeSignOut.add(task);
+      return () => {
+        beforeSignOut.delete(task);
+      };
     },
   };
   return manager;

@@ -48,3 +48,7 @@ coverage/
 
 # configuração local (URL da API desta máquina)
 .env
+
+# Firebase (push — R18): credenciais ficam fora do repositório
+google-services.json
+*firebase*service*account*.json
