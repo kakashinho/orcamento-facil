@@ -44,7 +44,8 @@ export class FcmPushSender implements PushSender {
     private readonly clock: Clock,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {
-    this.sign = createSigner({ key: credentials.privateKey, algorithm: "RS256", noTimestamp: true });
+    // Sem `noTimestamp`: essa opção descarta o `iat` do payload, e o Google recusa o JWT sem ele.
+    this.sign = createSigner({ key: credentials.privateKey, algorithm: "RS256" });
   }
 
   private async token(): Promise<string> {

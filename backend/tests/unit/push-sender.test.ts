@@ -42,6 +42,9 @@ describe("envio de push pelo FCM HTTP v1", () => {
       iss: credentials.clientEmail,
       scope: "https://www.googleapis.com/auth/firebase.messaging",
       aud: "https://oauth2.googleapis.com/token",
+      // O Google recusa o JWT sem `iat` ("Invalid JWT: iat (issued at) is not set").
+      iat: Math.floor(start.getTime() / 1000),
+      exp: Math.floor(start.getTime() / 1000) + 3600,
     });
 
     const send = calls.find((call) => call.url.includes("fcm.googleapis.com"))!;
