@@ -102,7 +102,7 @@ export async function buildApp(container: Container): Promise<App> {
         title: "Orçamento Fácil — API",
         version: API_VERSION,
         description:
-          "API RESTful do Orçamento Fácil (Sprint 1). Valores monetários são números com até 2 casas decimais na moeda da carteira; datas no formato AAAA-MM-DD. Corpos e filtros são validados de forma estrita: campo desconhecido é erro. Erros seguem o formato { statusCode, code, message, details? }, e `details` aponta cada campo inválido.",
+          "API RESTful do Orçamento Fácil: contas e sessão, carteiras, transações, recorrências e parcelamentos, orçamentos e metas, relatórios, notificações (caixa e push), lembretes de contas e anexos. Valores monetários são números com até 2 casas decimais na moeda da carteira; datas no formato AAAA-MM-DD. Corpos (JSON; anexos em multipart/form-data) e filtros são validados de forma estrita: campo desconhecido é erro. Erros seguem o formato { statusCode, code, message, details? }, e `details` aponta cada campo inválido.",
       },
       components: {
         securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" } },

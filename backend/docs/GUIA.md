@@ -111,7 +111,7 @@ Transações
 🔒 = exige header Authorization: Bearer <accessToken>
 ```
 
-São 64 rotas.
+São 109 rotas (64 da Sprint 1 e 45 da Sprint 2).
 
 ### 2.3 No código
 
@@ -126,11 +126,18 @@ Cada recurso tem um arquivo em `routes/`, e o [src/app.ts](../src/app.ts) regist
 | `/api/categories` | [modules/finance/routes/category.routes.ts](../src/modules/finance/routes/category.routes.ts) |
 | `/api/tags` | [modules/finance/routes/tag.routes.ts](../src/modules/finance/routes/tag.routes.ts) |
 | `/api/transactions` | [modules/finance/routes/transaction.routes.ts](../src/modules/finance/routes/transaction.routes.ts) |
+| `/api/transactions/:id/attachments` | [modules/attachments/routes/attachment.routes.ts](../src/modules/attachments/routes/attachment.routes.ts) |
 | `/api/transfers` | [modules/finance/routes/transfer.routes.ts](../src/modules/finance/routes/transfer.routes.ts) |
+| `/api/series` | [modules/finance/routes/series.routes.ts](../src/modules/finance/routes/series.routes.ts) |
 | `/api/exchange-rates` | [modules/finance/routes/exchange-rate.routes.ts](../src/modules/finance/routes/exchange-rate.routes.ts) |
 | `/api/currencies` | [modules/finance/routes/currency.routes.ts](../src/modules/finance/routes/currency.routes.ts) |
 | `/api/history` | [modules/history/routes/history.routes.ts](../src/modules/history/routes/history.routes.ts) |
 | `/api/reports` | [modules/reports/routes/report.routes.ts](../src/modules/reports/routes/report.routes.ts) |
+| `/api/budgets` | [modules/planning/routes/budget.routes.ts](../src/modules/planning/routes/budget.routes.ts) |
+| `/api/reduction-goals` | [modules/planning/routes/reduction-goal.routes.ts](../src/modules/planning/routes/reduction-goal.routes.ts) |
+| `/api/goals` | [modules/planning/routes/goal.routes.ts](../src/modules/planning/routes/goal.routes.ts) |
+| `/api/notifications` | [modules/notifications/routes/notification.routes.ts](../src/modules/notifications/routes/notification.routes.ts) |
+| `/api/reminders` | [modules/notifications/routes/reminder.routes.ts](../src/modules/notifications/routes/reminder.routes.ts) |
 | `/api/admin` | [modules/system/routes/admin.routes.ts](../src/modules/system/routes/admin.routes.ts) |
 | `/health`, `/api/system/status` | [modules/system/routes/system.routes.ts](../src/modules/system/routes/system.routes.ts) |
 
@@ -172,6 +179,7 @@ export const createTransactionRequestSchema = z.strictObject({   // campo descon
   walletId: uuid().optional(),
   categoryId: uuid().nullable().optional(),
   tags: tagNames.optional(),              // até 10 nomes de tag
+  notes: notes.optional(),                // observações (R57), até 1000 caracteres; null remove
 });
 export type CreateTransactionRequestDto = z.infer<typeof createTransactionRequestSchema>;
 
@@ -277,8 +285,12 @@ src/
 │   ├── auth/          cadastro, login (senha e biometria), sessão, recuperação de senha, perfil
 │   ├── finance/       carteiras, categorias, tags, transações, transferências, câmbio e moedas
 │   ├── history/       histórico de ações e "desfazer"
-│   ├── reports/       visão geral da tela inicial, extrato, PDF, fluxo de caixa, gráficos
-│   └── system/        saúde, status, manutenção, logs e limpeza periódica
+│   ├── reports/       visão geral da tela inicial, extrato, PDF, fluxo de caixa, gráficos, evolução do saldo,
+│   │                  indicadores do mês e projeção
+│   ├── planning/      orçamentos, metas de redução e de economia, regras de alerta
+│   ├── notifications/ caixa de notificações, preferências de aviso, aparelhos para push, lembretes de contas
+│   ├── attachments/   fotos, documentos e comprovantes das transações (cifrados)
+│   └── system/        saúde, status, manutenção, logs, limpeza periódica e tarefas agendadas
 │
 │   cada módulo tem as mesmas pastas:
 │   ├── routes/        declaram os endpoints (caminho + schema + controller)
@@ -293,8 +305,10 @@ src/
 │   ├── http/          autenticação (hook), manutenção, tratamento e documentação de erros, validadores comuns
 │   ├── auth/          JWT, hash de senha e verificação da assinatura biométrica do aparelho
 │   ├── crypto/        criptografia dos valores financeiros (AES-256-GCM)
+│   ├── events/        eventos de domínio em memória (o finance avisa o planning sem depender dele)
 │   ├── logging/       logger e registro de eventos
 │   ├── mail/          envio de e-mail
+│   ├── push/          envio de push pelo Firebase Cloud Messaging (API HTTP v1)
 │   └── exchange-rates/ cliente da API de câmbio
 │
 └── shared/            utilitários sem regra de negócio: erros, dinheiro, datas, paginação
@@ -344,6 +358,9 @@ App ──HTTP──► app.ts
              controller → reply.status(201).send(TransactionResponseDto)
                │ ⑩ resposta validada pelo DTO de saída, comprimida e enviada
  App ◄──201──
+               │ ⑪ depois do commit, o service publica o evento finance.changed: em segundo plano, os
+               │   alertas (planning) reavaliam orçamentos, saldo mínimo e metas e gravam notificações
+               ▼   (a resposta não espera por isso, e uma falha no alerta não desfaz a despesa)
 
  Erro em qualquer ponto → infrastructure/http/error-handler.ts → { statusCode, code, message, details? }
 ```

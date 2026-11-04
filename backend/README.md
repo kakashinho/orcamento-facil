@@ -1,6 +1,6 @@
 # Orçamento Fácil — Backend (API RESTful)
 
-API em Node.js que atende o aplicativo Android (React Native) do Orçamento Fácil: autenticação (com senha ou biometria), carteiras em várias moedas, transações, categorias, tags, transferências, desfazer, tela inicial em uma requisição, relatórios com PDF, câmbio, modo de manutenção e logs. Cobre os requisitos da Sprint 1 (`sources/requisitos-1sprint.txt`) que dependem do servidor.
+API em Node.js que atende o aplicativo Android (React Native) do Orçamento Fácil: autenticação (com senha ou biometria), carteiras em várias moedas, transações com observações, categorias, tags, transferências, desfazer, tela inicial em uma requisição, relatórios com PDF, câmbio, modo de manutenção e logs (Sprint 1); recorrências e parcelamentos, orçamentos mensais e diários, metas de redução e de economia, alertas, notificações com push pelo Firebase Cloud Messaging, lembretes de contas, anexos cifrados e os relatórios de evolução do saldo, indicadores do mês e projeção (Sprint 2). Cobre os requisitos das duas sprints que dependem do servidor.
 
 | Para… | Veja |
 |---|---|
@@ -38,6 +38,17 @@ abrir no celular, defina no `.env` `PASSWORD_RESET_URL=http://<IP do PC na rede>
 O primeiro usuário cujo e-mail esteja em `ADMIN_EMAILS` recebe o perfil de administrador
 (no compose: `admin@orcamentofacil.local`).
 
+As tarefas agendadas (ocorrências de recorrências e parcelas, lembrete diário, lembretes de contas, aviso de
+prazo das metas e reenvio de push) rodam a cada `JOBS_INTERVAL_MINUTES` (padrão 15; `0` desliga). Um
+administrador também as roda na hora com `POST /api/admin/jobs/run`, que responde
+`{ ranAt, results: [{ job, processed, skipped, failed, reason }] }`.
+
+Sem credencial do Firebase, o push só é registrado no log; a caixa de notificações do app funciona do mesmo
+jeito. Para enviar de verdade (R18), aponte `FCM_SERVICE_ACCOUNT_FILE` para o JSON da conta de serviço,
+guardado **fora do projeto**, ou preencha `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` e `FCM_PRIVATE_KEY`. No
+compose, prefira as três variáveis (o arquivo precisaria estar montado no container). A chave nunca vai para
+o git nem para o log.
+
 > **Banco de desenvolvimento antigo:** se o volume `postgres_data` foi criado com o protótipo
 > anterior (tabela `users` com id serial), recrie-o com `docker compose down -v` antes de migrar.
 
@@ -74,8 +85,13 @@ migrations pendentes e sobe a API (`HEALTHCHECK` em `/health`). Exigências de p
 - SMTP configurado (`SMTP_*`, `MAIL_FROM`) e `PUBLIC_BASE_URL` com o domínio público (link do e-mail);
 - TLS no Nginx/balanceador e `TRUST_PROXY=true`;
 - durante um deploy, `MAINTENANCE_MODE=true` (ou `PUT /api/admin/maintenance`) bloqueia operações de escrita (R72);
-- a limpeza de dados vencidos (sessões, links de recuperação, histórico e logs antigos) roda sozinha a cada
-  `HOUSEKEEPING_INTERVAL_MINUTES`; retenções em `HISTORY_RETENTION_DAYS` e `LOG_RETENTION_DAYS`.
+- a limpeza de dados vencidos (sessões, links de recuperação, histórico, logs e notificações antigas) roda
+  sozinha a cada `HOUSEKEEPING_INTERVAL_MINUTES`; retenções em `HISTORY_RETENTION_DAYS` e `LOG_RETENTION_DAYS`;
+- as tarefas agendadas rodam a cada `JOBS_INTERVAL_MINUTES` com trava no banco (uma instância por vez) e
+  param durante a manutenção;
+- push: credencial da conta de serviço do Firebase (`FCM_*`) no cofre de segredos;
+- anexos: até 5 MB por arquivo (o `nginx.conf` aceita corpos de até 6 MB) e `ATTACHMENT_QUOTA_MB` por usuário
+  (padrão 100). Os arquivos ficam cifrados no próprio PostgreSQL, então o backup do banco os inclui.
 
 O `.dockerignore` mantém fora da imagem o `.env`, o `node_modules` local e os artefatos de build.
 
@@ -89,13 +105,15 @@ src/
 ├── config/env.ts                       variáveis de ambiente validadas
 ├── modules/                            um módulo por domínio
 │   ├── auth/  finance/  history/  reports/  system/
+│   ├── planning/  notifications/  attachments/
 │   │   ├── routes/         endpoints
 │   │   ├── controllers/    request validado → service → response
 │   │   ├── schemas/        DTOs de request e response (Zod)
 │   │   ├── services/       regras de negócio
 │   │   ├── repositories/   acesso ao banco (Drizzle)
 │   │   └── types/
-├── infrastructure/                     banco, HTTP (auth hook, erros), JWT/senha, criptografia, logs, e-mail, câmbio
+├── infrastructure/                     banco, HTTP (auth hook, erros), JWT/senha, criptografia, logs, e-mail, câmbio,
+│                                       eventos de domínio, push (FCM)
 └── shared/                             erros e utilitários (dinheiro, datas, paginação)
 drizzle/                                migrations oficiais (versionadas)
 tests/unit · tests/integration          testes (inclui regras de arquitetura)

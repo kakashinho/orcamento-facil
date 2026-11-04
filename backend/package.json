@@ -1,7 +1,7 @@
 {
   "name": "orcamento-facil-backend",
   "version": "1.0.0",
-  "description": "API RESTful do Orçamento Fácil — gestão de finanças pessoais (Sprint 1)",
+  "description": "API RESTful do Orçamento Fácil — gestão de finanças pessoais",
   "main": "dist/server.js",
   "type": "module",
   "engines": {
