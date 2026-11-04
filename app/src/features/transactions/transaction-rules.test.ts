@@ -4,11 +4,20 @@ import { parseSignedAmount } from "../wallets/wallet-form-sheet";
 import { buildCashFlowRows } from "./cash-flow";
 import {
   categoryAccepts,
+  goalAmountOf,
+  INITIAL_SCHEDULE,
   initialFormValues,
+  mapScheduleFieldErrors,
   mapServerFieldErrors,
+  scheduleMode,
   toCreateRequest,
+  toInstallmentsRequest,
+  toRecurringRequest,
   toUpdateRequest,
+  validateGoalAmount,
+  validateSchedule,
   validateTransactionForm,
+  type TransactionFormValues,
 } from "./transaction-form";
 
 const defaults = { walletId: "w1", today: "2026-10-04" };
@@ -160,5 +169,77 @@ describe("saldo inicial da carteira", () => {
     ["abc", null],
   ])("interpreta %p", (text, expected) => {
     expect(parseSignedAmount(text)).toBe(expected);
+  });
+});
+
+describe("repetir (R37) e parcelar (R62) na criação", () => {
+  const values: TransactionFormValues = {
+    ...initialFormValues(null, defaults),
+    amountText: "123,55",
+    description: "Notebook",
+    categoryId: categories[0].id,
+    tags: ["casa"],
+  };
+
+  it("escolhe a rota pela opção: simples, recorrência ou parcelamento (só despesa)", () => {
+    expect(scheduleMode("expense", INITIAL_SCHEDULE)).toBe("single");
+    expect(scheduleMode("income", { ...INITIAL_SCHEDULE, repeat: "monthly" })).toBe("recurring");
+    expect(scheduleMode("expense", { ...INITIAL_SCHEDULE, installmentsOn: true })).toBe("installments");
+    // Receita não parcela: o interruptor esquecido ligado não muda a rota.
+    expect(scheduleMode("income", { ...INITIAL_SCHEDULE, installmentsOn: true })).toBe("single");
+  });
+
+  it("monta o corpo da recorrência com frequência e data final opcional", () => {
+    expect(toRecurringRequest(values, categories, { ...INITIAL_SCHEDULE, repeat: "weekly" })).toEqual({
+      ...toCreateRequest(values, categories),
+      frequency: "weekly",
+    });
+    expect(
+      toRecurringRequest(values, categories, { ...INITIAL_SCHEDULE, repeat: "yearly", endDate: "2028-10-04" }),
+    ).toMatchObject({ frequency: "yearly", endDate: "2028-10-04" });
+  });
+
+  it("no parcelamento, o valor digitado vira o total", () => {
+    expect(
+      toInstallmentsRequest(values, categories, { ...INITIAL_SCHEDULE, installmentsOn: true, installmentsText: "10" }),
+    ).toEqual({
+      totalAmount: 123.55,
+      installments: 10,
+      date: "2026-10-04",
+      description: "Notebook",
+      walletId: "w1",
+      categoryId: categories[0].id,
+      tags: ["casa"],
+    });
+  });
+
+  it("valida parcelas e data final", () => {
+    expect(validateSchedule(values, { ...INITIAL_SCHEDULE, installmentsOn: true, installmentsText: "1" })).toEqual({
+      installments: "Use de 2 a 72 parcelas.",
+    });
+    expect(validateSchedule(values, { ...INITIAL_SCHEDULE, repeat: "monthly", endDate: "2026-10-01" })).toEqual({
+      endDate: "A data final deve ser igual ou posterior à primeira ocorrência.",
+    });
+    expect(validateSchedule(values, { ...INITIAL_SCHEDULE, repeat: "monthly", endDate: "2027-10-01" })).toEqual({});
+    expect(validateSchedule(values, INITIAL_SCHEDULE)).toEqual({});
+  });
+
+  it("traduz os `details` das rotas de série", () => {
+    expect(
+      mapScheduleFieldErrors({ endDate: "Data final inválida.", installments: "O máximo é 72 parcelas." }),
+    ).toEqual({ endDate: "Data final inválida.", installments: "O máximo é 72 parcelas." });
+    expect(mapServerFieldErrors({ totalAmount: "Pequeno demais." })).toEqual({ amount: "Pequeno demais." });
+  });
+});
+
+describe("destinar a uma meta (R17)", () => {
+  it("valor vazio destina toda a receita; parcial até o valor dela", () => {
+    expect(validateGoalAmount("", 3500)).toBeNull();
+    expect(goalAmountOf("")).toBeUndefined();
+    expect(validateGoalAmount("500,00", 3500)).toBeNull();
+    expect(goalAmountOf("500,00")).toBe(500);
+    expect(validateGoalAmount("4000", 3500)).toBe("O valor passa do valor da receita.");
+    expect(validateGoalAmount("0", 3500)).toBe("O valor deve ser maior que zero.");
+    expect(validateGoalAmount("1,234", 3500)).toBe("Informe um valor válido, com até duas casas decimais.");
   });
 });

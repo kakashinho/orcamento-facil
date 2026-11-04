@@ -1,39 +1,57 @@
 import * as Speech from "expo-speech";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { errorMessage, fieldErrorsOf } from "@/core/http/api-error";
+import { errorMessage, fieldErrorsOf, isApiError } from "@/core/http/api-error";
 import { useDebouncedValue } from "@/core/hooks/use-debounced-value";
 import { logger } from "@/core/logging/logger";
-import type { Category, Transaction, TransactionType } from "@/data/api/types";
+import type { Category, Goal, Transaction, TransactionType } from "@/data/api/types";
 import {
   useCategories,
   useCategorySuggestion,
+  useCreateInstallments,
+  useCreateRecurring,
   useCreateTransaction,
   useParseTransactionText,
   useTags,
   useUpdateTransaction,
   useWalletSummary,
 } from "@/data/queries/finance";
+import { useContribute } from "@/data/queries/planning";
 import { useMaintenance } from "@/data/system/maintenance-store";
 import { categoryIcon } from "@/domain/catalog";
 import { todayIso } from "@/domain/dates";
-import { formatAmountInput, formatMoney } from "@/domain/money";
+import { formatAmountInput, formatMoney, parseAmountInput } from "@/domain/money";
+import { seriesErrorMessage } from "@/domain/series";
 import { Banner, Button, Chip, DateField, SegmentedControl, Sheet, Text, TextField } from "@/ui";
 import { useFeedback } from "../feedback/feedback-provider";
 import { useUndoableFeedback } from "../feedback/use-undoable-feedback";
 import { MaintenanceBanner } from "../system/maintenance-banner";
 import { WalletPicker } from "../wallets/components/wallet-picker";
 import { AmountInput } from "./components/amount-input";
+import { GoalDestinationField } from "./components/goal-destination-field";
+import { InstallmentsField } from "./components/installments-field";
 import { NewCategoryDialog } from "./components/new-category-dialog";
+import { RepeatField } from "./components/repeat-field";
 import { TagsInput } from "./components/tags-input";
 import {
   categoryAccepts,
+  goalAmountOf,
+  INITIAL_SCHEDULE,
   initialFormValues,
+  mapScheduleFieldErrors,
   mapServerFieldErrors,
   NOTES_MAX,
+  scheduleMode,
   toCreateRequest,
+  toInstallmentsRequest,
+  toRecurringRequest,
   toUpdateRequest,
+  validateGoalAmount,
+  validateSchedule,
   validateTransactionForm,
+  type RepeatChoice,
+  type ScheduleErrors,
+  type ScheduleValues,
   type TransactionFormErrors,
   type TransactionFormValues,
 } from "./transaction-form";
@@ -45,6 +63,7 @@ const NO_CATEGORIES: Category[] = [];
 /**
  * Registrar (R06) ou editar (R11) uma transação: valor, data, descrição, receita/despesa,
  * carteira, categoria (R07/R08) com sugestão pela descrição (R44), tags (R43) e voz (R65).
+ * Na criação: repetir (R37), parcelar a despesa (R62) e destinar a receita a uma meta (R17, R68).
  * O provedor remonta a folha (nova `key`) a cada abertura, então o estado nasce dos props.
  */
 export function TransactionFormSheet({
@@ -59,7 +78,7 @@ export function TransactionFormSheet({
   startWithVoice?: boolean;
   onClose: () => void;
 }) {
-  const { celebrate } = useFeedback();
+  const { celebrate, showSnackbar } = useFeedback();
   const undoable = useUndoableFeedback();
   const maintenance = useMaintenance();
   const wallets = useWalletSummary().data?.wallets ?? [];
@@ -67,6 +86,9 @@ export function TransactionFormSheet({
   const allCategories = useCategories().data ?? NO_CATEGORIES;
   const knownTags = (useTags().data ?? []).map((t) => t.name);
   const create = useCreateTransaction();
+  const createRecurring = useCreateRecurring();
+  const createInstallments = useCreateInstallments();
+  const contribute = useContribute();
   const update = useUpdateTransaction();
   const parse = useParseTransactionText();
 
@@ -78,6 +100,11 @@ export function TransactionFormSheet({
   const [newCategoryOpen, setNewCategoryOpen] = useState(false);
   const [categoryDialogKey, setCategoryDialogKey] = useState(0);
   const [voiceReview, setVoiceReview] = useState<string | null>(null);
+  // Só na criação: a voz (R65) abre o formulário com "Repetir" e "Parcelar" desligados.
+  const [schedule, setSchedule] = useState<ScheduleValues>(INITIAL_SCHEDULE);
+  const [scheduleErrors, setScheduleErrors] = useState<ScheduleErrors>({});
+  const [goal, setGoal] = useState<{ goal: Goal | null; amountText: string }>({ goal: null, amountText: "" });
+  const [goalError, setGoalError] = useState<string | null>(null);
 
   // Se as carteiras chegarem depois da abertura, vale a padrão.
   const walletId = values.walletId ?? defaultWalletId;
@@ -132,10 +159,59 @@ export function TransactionFormSheet({
     void startVoice();
   }, [open, startWithVoice, editing, startVoice]);
 
+  // Repetir e Parcelar são exclusivos (R37, R62).
+  const changeRepeat = (repeat: RepeatChoice) =>
+    setSchedule((s) => ({ ...s, repeat, installmentsOn: repeat === "none" ? s.installmentsOn : false }));
+  const toggleInstallments = (on: boolean) =>
+    setSchedule((s) => ({ ...s, installmentsOn: on, repeat: on ? "none" : s.repeat }));
+
   const handleError = (error: unknown) => {
-    const fields = mapServerFieldErrors(fieldErrorsOf(error));
-    if (Object.keys(fields).length) setErrors(fields);
-    else setFormError(errorMessage(error));
+    const serverFields = fieldErrorsOf(error);
+    const fields = mapServerFieldErrors(serverFields);
+    const scheduleFields = mapScheduleFieldErrors(serverFields);
+    if (Object.keys(fields).length || Object.keys(scheduleFields).length) {
+      setErrors(fields);
+      setScheduleErrors(scheduleFields);
+    } else setFormError((isApiError(error) && seriesErrorMessage(error.code)) || errorMessage(error));
+  };
+
+  /**
+   * Depois de gravar: destina a receita à meta escolhida (R17) e celebra a conquista (R68). Se o
+   * vínculo falhar, a receita continua registrada e o aviso explica.
+   */
+  const finish = (transactionId: string | null, message: string) => {
+    const target = values.type === "income" ? goal.goal : null;
+    if (!target) {
+      onClose();
+      celebrate(message);
+      return;
+    }
+    if (!transactionId) {
+      // Recorrência com a 1ª data no futuro: ainda não há receita para vincular.
+      onClose();
+      celebrate(message);
+      showSnackbar("Receita registrada. Destine à meta nos detalhes quando ela entrar no saldo.");
+      return;
+    }
+    contribute.mutate(
+      { goalId: target.id, transactionId, amount: goalAmountOf(goal.amountText) },
+      {
+        onSuccess: (result) => {
+          onClose();
+          if (result.achievedNow) celebrate(`Meta “${result.goal.name}” atingida`);
+          else {
+            celebrate(message);
+            showSnackbar(`Receita destinada à meta “${result.goal.name}”`);
+          }
+        },
+        onError: (error) => {
+          logger.warn("goals.contribution_after_create_failed", { code: isApiError(error) ? error.code : null });
+          onClose();
+          celebrate(message);
+          showSnackbar("Receita registrada, mas não foi possível destinar à meta");
+        },
+      },
+    );
   };
 
   const submit = () => {
@@ -143,7 +219,14 @@ export function TransactionFormSheet({
     const current = { ...values, walletId };
     const found = validateTransactionForm(current);
     setErrors(found);
-    if (Object.keys(found).length) return;
+    const foundSchedule = editing ? {} : validateSchedule(current, schedule);
+    setScheduleErrors(foundSchedule);
+    const foundGoal =
+      !editing && current.type === "income" && goal.goal
+        ? validateGoalAmount(goal.amountText, parseAmountInput(current.amountText))
+        : null;
+    setGoalError(foundGoal);
+    if (Object.keys(found).length || Object.keys(foundSchedule).length || foundGoal) return;
     if (editing) {
       const body = toUpdateRequest(editing, current, allCategories);
       if (Object.keys(body).length === 0) {
@@ -162,16 +245,33 @@ export function TransactionFormSheet({
       );
       return;
     }
+    const mode = scheduleMode(current.type, schedule);
+    if (mode === "recurring") {
+      createRecurring.mutate(toRecurringRequest(current, allCategories, schedule), {
+        onSuccess: (result) => finish(result.transactions[0]?.id ?? null, "Recorrência registrada"),
+        onError: handleError,
+      });
+      return;
+    }
+    if (mode === "installments") {
+      createInstallments.mutate(toInstallmentsRequest(current, allCategories, schedule), {
+        onSuccess: () => finish(null, "Parcelamento registrado"),
+        onError: handleError,
+      });
+      return;
+    }
     create.mutate(toCreateRequest(current, allCategories), {
-      onSuccess: () => {
-        onClose();
-        celebrate("Transação registrada");
-      },
+      onSuccess: (transaction) => finish(transaction.id, "Transação registrada"),
       onError: handleError,
     });
   };
 
-  const saving = create.isPending || update.isPending;
+  const saving =
+    create.isPending ||
+    update.isPending ||
+    createRecurring.isPending ||
+    createInstallments.isPending ||
+    contribute.isPending;
   const canSave = !!values.amountText && !!values.categoryId && !maintenance.active;
 
   return (
@@ -317,6 +417,42 @@ export function TransactionFormSheet({
               maxLength={NOTES_MAX}
               error={errors.notes}
             />
+
+            {!editing ? (
+              <RepeatField
+                allowNone
+                value={schedule.repeat}
+                onChange={changeRepeat}
+                endDate={schedule.endDate}
+                onEndDateChange={(endDate) => setSchedule((s) => ({ ...s, endDate }))}
+                endDateError={scheduleErrors.endDate}
+              />
+            ) : null}
+
+            {!editing && values.type === "expense" ? (
+              <InstallmentsField
+                enabled={schedule.installmentsOn}
+                onToggle={toggleInstallments}
+                countText={schedule.installmentsText}
+                onCountChange={(installmentsText) => setSchedule((s) => ({ ...s, installmentsText }))}
+                total={parseAmountInput(values.amountText)}
+                currency={currency}
+                error={scheduleErrors.installments}
+              />
+            ) : null}
+
+            {!editing && values.type === "income" ? (
+              <GoalDestinationField
+                goalId={goal.goal?.id ?? null}
+                onGoalChange={(selected) => {
+                  setGoalError(null);
+                  setGoal((g) => ({ ...g, goal: selected }));
+                }}
+                amountText={goal.amountText}
+                onAmountChange={(amountText) => setGoal((g) => ({ ...g, amountText }))}
+                error={goalError}
+              />
+            ) : null}
 
             <View style={styles.actions}>
               <View style={styles.spacer} />

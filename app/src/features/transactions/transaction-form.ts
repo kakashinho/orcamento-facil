@@ -1,11 +1,15 @@
 import type {
   Category,
+  CreateInstallmentsRequest,
+  CreateRecurringRequest,
   CreateTransactionRequest,
+  Frequency,
   Transaction,
   TransactionType,
   UpdateTransactionRequest,
 } from "@/data/api/types";
 import { formatAmountInput, parseAmountInput } from "@/domain/money";
+import { parseInstallmentsInput, validateEndDate, validateInstallments } from "@/domain/series";
 
 /** Estado do formulário de transação (registrar R06 / editar R11). */
 export interface TransactionFormValues {
@@ -118,7 +122,7 @@ export function toUpdateRequest(
 export function mapServerFieldErrors(fields: Record<string, string>): TransactionFormErrors {
   const errors: TransactionFormErrors = {};
   for (const [path, message] of Object.entries(fields)) {
-    if (path === "amount") errors.amount = message;
+    if (path === "amount" || path === "totalAmount") errors.amount = message;
     else if (path === "description") errors.description = message;
     else if (path === "categoryId") errors.category = message;
     else if (path === "walletId") errors.wallet = message;
@@ -132,4 +136,106 @@ export function mapServerFieldErrors(fields: Record<string, string>): Transactio
 /** Categoria aceita o tipo da transação? (null = receitas e despesas). */
 export function categoryAccepts(category: Pick<Category, "type"> | undefined, type: TransactionType): boolean {
   return !category || category.type === null || category.type === type;
+}
+
+// ---------- repetir (R37) e parcelar (R62): só na criação ----------
+
+export type RepeatChoice = "none" | Frequency;
+
+/** Opções de repetição da transação nova, fora dos valores do formulário (a edição não as usa). */
+export interface ScheduleValues {
+  repeat: RepeatChoice;
+  /** Data final opcional da recorrência (AAAA-MM-DD ou vazio). */
+  endDate: string;
+  /** Parcelar (só despesa); exclusivo com "Repetir". */
+  installmentsOn: boolean;
+  installmentsText: string;
+}
+
+export const INITIAL_SCHEDULE: ScheduleValues = {
+  repeat: "none",
+  endDate: "",
+  installmentsOn: false,
+  installmentsText: "2",
+};
+
+export type ScheduleMode = "single" | "recurring" | "installments";
+
+/** Qual rota a criação usa: transação simples, recorrência ou parcelamento (só despesa). */
+export function scheduleMode(type: TransactionType, schedule: ScheduleValues): ScheduleMode {
+  if (type === "expense" && schedule.installmentsOn) return "installments";
+  if (schedule.repeat !== "none") return "recurring";
+  return "single";
+}
+
+export type ScheduleErrors = Partial<Record<"endDate" | "installments", string>>;
+
+export function validateSchedule(values: TransactionFormValues, schedule: ScheduleValues): ScheduleErrors {
+  const errors: ScheduleErrors = {};
+  const mode = scheduleMode(values.type, schedule);
+  if (mode === "installments") {
+    const message = validateInstallments(
+      parseInstallmentsInput(schedule.installmentsText),
+      parseAmountInput(values.amountText),
+    );
+    if (message) errors.installments = message;
+  }
+  if (mode === "recurring") {
+    const message = validateEndDate(schedule.endDate, values.date);
+    if (message) errors.endDate = message;
+  }
+  return errors;
+}
+
+/** Recorrência: o mesmo corpo da transação, com a frequência e a data final opcional. */
+export function toRecurringRequest(
+  values: TransactionFormValues,
+  categories: Category[],
+  schedule: ScheduleValues,
+): CreateRecurringRequest {
+  return {
+    ...toCreateRequest(values, categories),
+    frequency: schedule.repeat === "none" ? "monthly" : schedule.repeat,
+    ...(schedule.endDate ? { endDate: schedule.endDate } : {}),
+  };
+}
+
+/** Parcelamento: o valor digitado é o total, dividido pelo servidor (a sobra fica na 1ª parcela). */
+export function toInstallmentsRequest(
+  values: TransactionFormValues,
+  categories: Category[],
+  schedule: ScheduleValues,
+): CreateInstallmentsRequest {
+  const { amount, type: _type, ...rest } = toCreateRequest(values, categories);
+  return {
+    ...rest,
+    totalAmount: amount,
+    installments: parseInstallmentsInput(schedule.installmentsText) ?? 0,
+    date: values.date,
+  };
+}
+
+/** Erros por campo das rotas de série (`details[].path`). */
+export function mapScheduleFieldErrors(fields: Record<string, string>): ScheduleErrors {
+  const errors: ScheduleErrors = {};
+  if (fields.endDate) errors.endDate = fields.endDate;
+  if (fields.installments) errors.installments = fields.installments;
+  return errors;
+}
+
+// ---------- destinar a uma meta (R17) ----------
+
+/** Valor opcional destinado à meta: vazio = toda a receita; senão, entre 0 e o valor da receita. */
+export function validateGoalAmount(amountText: string, transactionAmount: number | null): string | null {
+  if (!amountText.trim()) return null;
+  const amount = parseAmountInput(amountText);
+  if (amount === null) return "Informe um valor válido, com até duas casas decimais.";
+  if (amount <= 0) return "O valor deve ser maior que zero.";
+  if (transactionAmount !== null && amount > transactionAmount) return "O valor passa do valor da receita.";
+  return null;
+}
+
+/** Valor enviado no vínculo: undefined deixa o servidor usar todo o valor disponível da receita. */
+export function goalAmountOf(amountText: string): number | undefined {
+  return amountText.trim() ? (parseAmountInput(amountText) ?? undefined) : undefined;
 }

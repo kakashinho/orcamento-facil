@@ -3,12 +3,13 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { Transaction } from "@/data/api/types";
 import { formatDate } from "@/domain/dates";
 import { formatSignedMoney } from "@/domain/money";
+import { seriesLabel } from "@/domain/series";
 import { Icon, radii, Text, useTheme, withAlpha, type IconName } from "@/ui";
 
 /** Altura fixa da linha: permite `getItemLayout` na FlatList (rolagem eficiente — R09/R83). */
 export const TRANSACTION_ROW_HEIGHT = 68;
 
-/** Linha da lista de transações, como `TxRow` no protótipo. */
+/** Linha da lista de transações, como `TxRow` no protótipo; com selo da recorrência ou parcela (R37, R62). */
 export const TransactionRow = memo(function TransactionRow({
   transaction,
   icon,
@@ -22,10 +23,12 @@ export const TransactionRow = memo(function TransactionRow({
   const income = transaction.type === "income";
   const amount = formatSignedMoney(transaction.amount, transaction.currency, income ? "in" : "out");
   const subtitle = `${transaction.category?.name ?? "Sem categoria"} · ${transaction.wallet.name}`;
+  const series = transaction.series;
+  const seriesText = series ? `, ${seriesLabel(series).toLowerCase()}` : "";
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${transaction.description}, ${income ? "receita" : "despesa"} de ${amount}, ${formatDate(transaction.date, "long")}`}
+      accessibilityLabel={`${transaction.description}, ${income ? "receita" : "despesa"} de ${amount}, ${formatDate(transaction.date, "long")}${seriesText}`}
       onPress={() => onPress(transaction)}
       android_ripple={{ color: withAlpha(colors.onSurface, 0.08) }}
       style={styles.row}
@@ -39,6 +42,12 @@ export const TransactionRow = memo(function TransactionRow({
             {transaction.description}
           </Text>
           {transaction.archived ? <Icon name="inventory_2" size={14} /> : null}
+          {series?.kind === "recurring" ? <Icon name="repeat" size={14} /> : null}
+          {series?.kind === "installment" ? (
+            <Text variant="caption" color="onSurfaceVariant" testID="installment-badge">
+              {series.occurrence}/{series.total}
+            </Text>
+          ) : null}
         </View>
         <Text variant="label" color="onSurfaceVariant" numberOfLines={1}>
           {subtitle}
