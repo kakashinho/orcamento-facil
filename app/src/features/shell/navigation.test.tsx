@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/ui";
 import RootLayout from "../../app/_layout";
 import AppLayout from "../../app/(app)/_layout";
 import HomeRoute from "../../app/(app)/index";
+import PlanningRoute from "../../app/(app)/planning";
 import PreferencesRoute from "../../app/(app)/preferences";
 import TransactionsRoute from "../../app/(app)/transactions";
 import WalletsRoute from "../../app/(app)/wallets";
@@ -29,6 +30,7 @@ const routes = {
   "(app)/_layout": AppLayout,
   "(app)/index": HomeRoute,
   "(app)/transactions": TransactionsRoute,
+  "(app)/planning": PlanningRoute,
   "(app)/wallets": WalletsRoute,
   "(app)/preferences": PreferencesRoute,
   "reset-password": ResetRoute,
@@ -83,7 +85,10 @@ describe("navegação responsiva (R82)", () => {
     return {
       state: {
         index: 0,
-        routes: ["index", "transactions", "wallets", "preferences"].map((name) => ({ key: `${name}-key`, name })),
+        routes: ["index", "transactions", "planning", "wallets", "preferences"].map((name) => ({
+          key: `${name}-key`,
+          name,
+        })),
       },
       navigation: { emit: jest.fn(() => ({ defaultPrevented: false })), navigate },
       descriptors: {},
@@ -106,11 +111,10 @@ describe("navegação responsiva (R82)", () => {
     );
   }
 
-  it("mostra os quatro destinos do protótipo e marca o ativo", async () => {
+  it("mostra os cinco destinos, com Planejamento entre Transações e Carteiras, e marca o ativo", async () => {
     await renderNav(false);
-    for (const label of ["Início", "Transações", "Carteiras", "Preferências"]) {
-      expect(screen.getByRole("tab", { name: label })).toBeOnTheScreen();
-    }
+    const labels = ["Início", "Transações", "Planejamento", "Carteiras", "Preferências"];
+    expect(screen.getAllByRole("tab").map((tab) => tab.props.accessibilityLabel)).toEqual(labels);
     expect(screen.getByRole("tab", { name: "Início" })).toBeSelected();
     expect(screen.getByTestId("navigation-bar")).toBeOnTheScreen();
   });
@@ -120,11 +124,14 @@ describe("navegação responsiva (R82)", () => {
     await renderNav(false, navigate);
     await fireEvent.press(screen.getByRole("tab", { name: "Carteiras" }));
     expect(navigate).toHaveBeenCalledWith("wallets");
+    await fireEvent.press(screen.getByRole("tab", { name: "Planejamento" }));
+    expect(navigate).toHaveBeenCalledWith("planning");
   });
 
   it("vira trilho lateral em telas largas", async () => {
     await renderNav(true);
     expect(screen.getByTestId("navigation-rail")).toHaveStyle({ width: 88 });
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
     expect(screen.queryByTestId("navigation-bar")).toBeNull();
   });
 });

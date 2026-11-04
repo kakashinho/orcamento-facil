@@ -3,10 +3,11 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, radii, Text, useTheme, withAlpha, type IconName } from "@/ui";
 
-/** Destinos principais, na ordem do protótipo. */
+/** Destinos principais, na ordem do protótipo; "Planejamento" (R21, R15, R34) entra na Sprint 2 (ADR-S2-011). */
 export const DESTINATIONS: { name: string; label: string; icon: IconName }[] = [
   { name: "index", label: "Início", icon: "home" },
   { name: "transactions", label: "Transações", icon: "receipt_long" },
+  { name: "planning", label: "Planejamento", icon: "savings" },
   { name: "wallets", label: "Carteiras", icon: "account_balance_wallet" },
   { name: "preferences", label: "Preferências", icon: "settings" },
 ];
