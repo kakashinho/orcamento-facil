@@ -46,6 +46,7 @@ export function AnnualSummaryCard({ enabled }: { enabled: boolean }) {
       error={report.isError && !data ? report.error : undefined}
       onRetry={() => void report.refetch()}
       skeletonHeight={180}
+      share={{ period: `Ano de ${year}` }}
       testID="annual-summary"
     >
       {summary ? (

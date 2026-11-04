@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import type { MonthIndicators } from "@/data/api/types";
 import { useMonthIndicators } from "@/data/queries/reports";
+import { monthLabel } from "@/domain/dates";
 import { formatMoney, formatMoneyWithSign } from "@/domain/money";
 import { Divider, Text } from "@/ui";
 import { SectionCard } from "./components/section-card";
@@ -27,6 +28,7 @@ export function MonthIndicatorsCard({ month }: { month: string }) {
       loading={indicators.isPending}
       error={indicators.isError && !data ? indicators.error : undefined}
       onRetry={() => void indicators.refetch()}
+      share={{ period: monthLabel(month) }}
       testID="month-indicators"
     >
       {data ? (

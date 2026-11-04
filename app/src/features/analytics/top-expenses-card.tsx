@@ -1,5 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { useMonthIndicators } from "@/data/queries/reports";
+import { monthLabel } from "@/domain/dates";
 import { formatMoney } from "@/domain/money";
 import { Text } from "@/ui";
 import { useAppSheets } from "../shell/app-sheets";
@@ -20,6 +21,7 @@ export function TopExpensesCard({ month }: { month: string }) {
       error={indicators.isError && !data ? indicators.error : undefined}
       onRetry={() => void indicators.refetch()}
       skeletonHeight={200}
+      share={{ period: monthLabel(month) }}
       testID="top-expenses"
     >
       {data && data.topExpenses.length === 0 ? (

@@ -57,6 +57,7 @@ export function BalanceEvolutionCard() {
       error={evolution.isError && !data ? evolution.error : undefined}
       onRetry={() => void evolution.refetch()}
       skeletonHeight={200}
+      share={{ period: range === "30d" ? "Últimos 30 dias" : "Últimos 12 meses" }}
       testID="balance-evolution"
     >
       <SegmentedControl

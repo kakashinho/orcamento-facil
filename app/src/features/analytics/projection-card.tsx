@@ -33,6 +33,7 @@ export function ProjectionCard({ enabled }: { enabled: boolean }) {
       error={projection.isError && !data ? projection.error : undefined}
       onRetry={() => void projection.refetch()}
       skeletonHeight={200}
+      share={{ period: `Próximos ${MONTHS} meses` }}
       testID="projection"
     >
       {data ? (

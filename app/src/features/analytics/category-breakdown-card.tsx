@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { useCategories } from "@/data/queries/finance";
 import { useByCategory } from "@/data/queries/reports";
 import { describeShares, formatPercent, groupTopCategories, OTHERS_LABEL } from "@/domain/charts";
-import { currentMonth, firstDayOfMonth, lastDayOfMonth, shiftMonth, todayIso } from "@/domain/dates";
+import { currentMonth, firstDayOfMonth, formatDate, lastDayOfMonth, shiftMonth, todayIso } from "@/domain/dates";
 import { formatMoney } from "@/domain/money";
 import {
   Button,
@@ -68,6 +68,7 @@ export function CategoryBreakdownCard({ month }: { month: string }) {
         error={report.isError && !data ? report.error : undefined}
         onRetry={() => void report.refetch()}
         skeletonHeight={220}
+        share={{ period: `${formatDate(range.from)} a ${formatDate(range.to)}` }}
         testID="category-breakdown"
       >
         <View style={styles.chips}>
