@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { Wallet } from "@/data/api/types";
 import { walletTypeMeta } from "@/domain/catalog";
 import { Icon, radii, Text, useTheme, withAlpha } from "@/ui";
@@ -30,7 +30,10 @@ export function WalletAvatar({
   );
 }
 
-/** Seletor horizontal de carteira (formulários de transação e transferência). */
+/**
+ * Seleção de carteira (formulários de transação e transferência). As opções quebram para a linha de baixo
+ * em vez de rolar para o lado: a rolagem horizontal dentro da folha era difícil de acionar no Android.
+ */
 export function WalletPicker({
   label,
   wallets,
@@ -50,7 +53,7 @@ export function WalletPicker({
       <Text variant="caption" weight="medium" color="onSurfaceVariant" style={styles.label}>
         {label}
       </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list}>
+      <View style={styles.list}>
         {wallets
           .filter((w) => w.id !== exclude)
           .map((wallet) => {
@@ -78,14 +81,14 @@ export function WalletPicker({
               </Pressable>
             );
           })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   label: { paddingHorizontal: 4 },
-  list: { gap: 8, paddingVertical: 8 },
+  list: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 8 },
   item: {
     height: 44,
     flexDirection: "row",
