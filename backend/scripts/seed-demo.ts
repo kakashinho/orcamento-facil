@@ -22,7 +22,7 @@ import { makePdf, makeReceiptPng } from "./demo/files.js";
 const DEMO = {
   email: "demo@orcamentofacil.app",
   username: "demo",
-  password: "Apresenta@2026",
+  password: "Facil@2026",
 };
 const ADMIN = { email: "admin@orcamentofacil.local", username: "admin", password: "Gestor@2026!" };
 

@@ -63,7 +63,7 @@ nascem como no uso real. Com a pilha do Docker no ar:
 
 ```bash
 docker compose up -d --build
-npm run demo:seed -- --reset      # recria a conta demo@orcamentofacil.app (senha Apresenta@2026)
+npm run demo:seed -- --reset      # recria a conta demo@orcamentofacil.app (senha Facil@2026)
 ```
 
 Opções: `--api <url>` (padrão `http://localhost`, ou `DEMO_API_URL`), `--db <url>` (padrão o PostgreSQL do
