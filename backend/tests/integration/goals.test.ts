@@ -170,6 +170,23 @@ describe("metas de economia (R15, R16, R17, R68)", () => {
     expect((await user.api.get("/api/notifications")).json().data).toHaveLength(1);
   });
 
+  it("desvincular receita de meta atingida reabre a meta (volta a ativa, sem perder o aviso)", async () => {
+    const user = await registerUser(ctx.app);
+    const small = await goal(user, { name: "Fone", targetAmount: 500 });
+    const first = await income(user, 300);
+    const second = await income(user, 300);
+    await user.api.post(`/api/goals/${small.id}/contributions`, { transactionId: first.id });
+    const done = (await user.api.post(`/api/goals/${small.id}/contributions`, { transactionId: second.id })).json();
+    expect(done.goal.status).toBe("achieved");
+
+    const detail = (await user.api.get(`/api/goals/${small.id}`)).json();
+    const removed = await user.api.delete(`/api/goals/${small.id}/contributions/${detail.contributions[0].id}`);
+    expect(removed.statusCode).toBe(204);
+    expect(await user.api.get(`/api/goals/${small.id}`).then((r) => r.json())).toMatchObject({ status: "active", saved: 300, achievedAt: null });
+    await ctx.container.events.idle();
+    expect((await user.api.get("/api/notifications")).json().data).toHaveLength(1);
+  });
+
   it("meta completada por mudança no finance (desfazer) também é marcada e avisada", async () => {
     const user = await registerUser(ctx.app);
     const big = await goal(user, { name: "Notebook", targetAmount: 2000 });

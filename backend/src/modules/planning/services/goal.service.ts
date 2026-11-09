@@ -302,6 +302,8 @@ export class GoalService {
 
   async removeContribution(userId: string, goalId: string, contributionId: string): Promise<void> {
     if (!(await this.deps.contributions.delete(userId, goalId, contributionId))) throw errors.notFound("Vínculo");
+    // Sem o vínculo, a meta pode ter voltado abaixo do alvo: reavalia e reabre se for o caso.
+    await this.reopenIfBelowTarget(userId, goalId);
   }
 
   /** Para os detalhes da transação: a quais metas a receita foi destinada. */
@@ -320,6 +322,19 @@ export class GoalService {
    * Chamado depois de cada vínculo e, pelos alertas, depois de mudanças no finance. Devolve os
    * ids das metas recém-atingidas.
    */
+  /** Meta atingida que voltou abaixo do alvo (receita desvinculada ou alterada) volta a ativa. */
+  async reopenIfBelowTarget(userId: string, goalId: string): Promise<void> {
+    const achieved = (await this.deps.goals.list(userId, ["achieved"])).filter((goal) => goal.id === goalId);
+    if (achieved.length === 0) return;
+    const { byGoal, sources } = await this.load(userId, achieved);
+    for (const goal of achieved) {
+      const { savedCents } = await this.progress(goal, byGoal.get(goal.id) ?? [], sources);
+      if (savedCents !== null && savedCents < goal.targetCents) {
+        await this.deps.goals.setStatus(goal.id, "active", null, this.deps.clock.now());
+      }
+    }
+  }
+
   async markAchievedIfComplete(userId: string, goalId?: string): Promise<string[]> {
     const active = (await this.deps.goals.list(userId, ["active"])).filter((goal) => goalId === undefined || goal.id === goalId);
     if (active.length === 0) return [];
