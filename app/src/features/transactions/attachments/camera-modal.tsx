@@ -1,5 +1,5 @@
 import type { CameraView } from "expo-camera";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Linking, Modal, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { logger } from "@/core/logging/logger";
@@ -65,6 +65,12 @@ function CameraFlow({
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = camera.useCameraPermissions();
   const ref = useRef<CameraView>(null);
+  // Sem a permissão, pede logo ao abrir a câmera (o sistema mostra a janela de permissão).
+  const granted = permission?.granted;
+  const canAsk = permission?.canAskAgain;
+  useEffect(() => {
+    if (granted === false && canAsk) void requestPermission();
+  }, [granted, canAsk, requestPermission]);
   const [ready, setReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [processing, setProcessing] = useState(false);
