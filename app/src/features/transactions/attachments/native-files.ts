@@ -1,7 +1,14 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { requireOptionalNativeModule } from "expo";
 import type { LocalFile } from "@/data/api";
-import { ACCEPTED_MIME_TYPES, mimeTypeOf, PHOTO_QUALITY, photoFileName, photoResize } from "@/domain/attachments";
+import {
+  ACCEPTED_MIME_TYPES,
+  mimeTypeOf,
+  PHOTO_MAX_SIDE,
+  PHOTO_QUALITY,
+  photoFileName,
+  photoResize,
+} from "@/domain/attachments";
 
 type DocumentPickerPackage = typeof import("expo-document-picker");
 type CameraPackage = typeof import("expo-camera");
@@ -55,6 +62,20 @@ export async function pickDocument(): Promise<PickedFile | null> {
     mimeType: mimeTypeOf(asset.name, asset.mimeType) ?? asset.mimeType ?? "application/octet-stream",
     size: typeof asset.size === "number" ? asset.size : null,
   };
+}
+
+/**
+ * Imagem da galeria acima do limite: reduz para 1600 px de largura (a proporção se mantém) e
+ * comprime em JPEG. Sem o módulo de imagem, devolve null e o arquivo original não é enviado.
+ */
+export async function shrinkGalleryImage(uri: string, name: string): Promise<LocalFile | null> {
+  const manipulator = getImageManipulator();
+  if (!manipulator) return null;
+  const context = manipulator.ImageManipulator.manipulate(uri).resize({ width: PHOTO_MAX_SIDE });
+  const image = await context.renderAsync();
+  const saved = await image.saveAsync({ compress: PHOTO_QUALITY, format: manipulator.SaveFormat.JPEG });
+  const base = name.replace(/\.[^.]+$/, "");
+  return { uri: saved.uri, name: `${base}.jpg`, mimeType: "image/jpeg" };
 }
 
 /**

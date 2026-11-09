@@ -4,9 +4,9 @@ import { logger } from "@/core/logging/logger";
 import type { LocalFile } from "@/data/api";
 import type { Attachment, AttachmentKind } from "@/data/api/types";
 import { useAttachments, useDeleteAttachment, useUploadAttachment } from "@/data/queries/attachments";
-import { attachmentErrorMessage, MAX_ATTACHMENTS, validateLocalFile } from "@/domain/attachments";
+import { attachmentErrorMessage, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, validateLocalFile } from "@/domain/attachments";
 import { useFeedback } from "../../feedback/feedback-provider";
-import { getCamera, pickDocument } from "./native-files";
+import { getCamera, pickDocument, shrinkGalleryImage } from "./native-files";
 import { openAttachment } from "./open-attachment";
 
 const UPLOADED: Record<AttachmentKind, string> = {
@@ -66,12 +66,24 @@ export function useAttachmentActions(transactionId: string, open: boolean) {
     try {
       const picked = await pickDocument();
       if (!picked) return;
-      const invalid = validateLocalFile(picked);
+      // Imagem da galeria acima de 5 MB: reduz antes de enviar, como a foto da câmera.
+      const isImage = picked.mimeType.startsWith("image/");
+      const tooBig = typeof picked.size === "number" && picked.size > MAX_ATTACHMENT_BYTES;
+      let file: typeof picked = picked;
+      if (isImage && tooBig) {
+        const shrunk = await shrinkGalleryImage(picked.uri, picked.name);
+        if (!shrunk) {
+          setError("Esta imagem passa de 5 MB. Escolha uma imagem menor.");
+          return;
+        }
+        file = { ...shrunk, size: null };
+      }
+      const invalid = validateLocalFile(file);
       if (invalid) {
         setError(invalid);
         return;
       }
-      send(picked, kind, setError);
+      send(file, kind, setError);
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : "Não foi possível abrir o seletor de arquivos.");
     }
