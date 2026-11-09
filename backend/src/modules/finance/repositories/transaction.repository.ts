@@ -301,6 +301,10 @@ export class TransactionRepository extends Repository {
     if (filters.walletId) conditions.push(eq(transactions.walletId, filters.walletId));
     if (filters.categoryId) conditions.push(eq(transactions.categoryId, filters.categoryId));
     if (filters.type) conditions.push(eq(transactions.type, filters.type));
+    if (filters.origin === "single") conditions.push(isNull(transactions.seriesId));
+    if (filters.origin === "recurring" || filters.origin === "installment") {
+      conditions.push(sql`exists (select 1 from transaction_series s where s.id = ${transactions.seriesId} and s.kind = ${filters.origin})`);
+    }
     const archived = filters.archived ?? "false";
     if (archived !== "all") conditions.push(eq(transactions.archived, archived === "true"));
     if (filters.q && filters.q.trim().length > 0) {

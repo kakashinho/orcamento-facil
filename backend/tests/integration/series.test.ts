@@ -163,6 +163,20 @@ describe("recorrências e parcelamentos (R37, R62)", () => {
     expect(short.statusCode).toBe(400);
   });
 
+  it("filtro de origem na listagem: avulsas, recorrências e parcelamentos", async () => {
+    const user = await registerUser(ctx.app);
+    const avulsa = await createTransaction(user, { amount: 5, description: "Avulsa" });
+    const rec = await recurring(user, { description: "Assinatura" });
+    const parc = await user.api.post("/api/series/installments", { totalAmount: 60, installments: 3, date: "2026-03-10", description: "Parcelado" });
+    const ids = (origin: string) =>
+      user.api.get(`/api/transactions?origin=${origin}&limit=100`).then((r) => r.json().data.map((x: { id: string }) => x.id));
+    expect(await ids("single")).toEqual([avulsa.id]);
+    expect(await ids("recurring")).toEqual(expect.arrayContaining([rec.json().transactions[0].id]));
+    expect(await ids("recurring")).not.toContain(parc.json().transactions[0].id);
+    expect(await ids("installment")).toEqual([parc.json().transactions[0].id]);
+    expect((await ids("all")).length).toBeGreaterThanOrEqual(3);
+  });
+
   it("desfazer a criação exclui as transações, restaura o saldo e cancela a série", async () => {
     const user = await registerUser(ctx.app);
     const created = (await recurring(user, { date: "2026-01-10" })).json();

@@ -232,7 +232,11 @@ export interface TransactionFilters {
   to?: string;
   month?: string;
   archived?: ArchivedFilter;
+  /** Origem: avulsas, recorrências, parcelamentos ou todas. */
+  origin?: TransactionOrigin;
 }
+
+export type TransactionOrigin = "all" | "single" | "recurring" | "installment";
 
 export interface ListTransactionsQuery extends TransactionFilters {
   sort?: SortKey;

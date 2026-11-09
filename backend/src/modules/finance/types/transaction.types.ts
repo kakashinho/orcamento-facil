@@ -78,6 +78,8 @@ export interface SeriesLink {
 }
 
 export type ArchivedFilter = "false" | "true" | "all";
+/** Origem: avulsas, recorrências, parcelamentos ou todas. */
+export type OriginFilter = "all" | "single" | "recurring" | "installment";
 export type SortOrder = "asc" | "desc";
 
 /** Filtros estruturados que o service entrega ao repository (R10, R26, R52). */
@@ -91,6 +93,7 @@ export interface TransactionFilters {
   to?: string | undefined;
   month?: string | undefined;
   archived?: ArchivedFilter | undefined;
+  origin?: OriginFilter | undefined;
 }
 
 /** Posição na lista ordenada por data (paginação por keyset). */

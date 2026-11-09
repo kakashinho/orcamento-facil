@@ -78,6 +78,10 @@ const filterFields = {
   to: isoDate.optional().meta({ description: "Data final (inclusive)" }),
   month: isoMonth.optional().meta({ description: "Mês AAAA-MM (R26); combinado com from/to, vale a interseção" }),
   archived: archivedFilter,
+  origin: z
+    .enum(["all", "single", "recurring", "installment"])
+    .optional()
+    .meta({ description: "single: avulsas; recurring: recorrências; installment: parcelamentos (padrão: todas)" }),
 };
 
 export const transactionFiltersQuerySchema = z.strictObject(filterFields).superRefine(dateRangeRule("from", "to"));

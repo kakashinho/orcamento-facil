@@ -3,7 +3,7 @@ import { FlatList, RefreshControl, StyleSheet, TextInput, View } from "react-nat
 import { useDebouncedValue } from "@/core/hooks/use-debounced-value";
 import { errorMessage } from "@/core/http/api-error";
 import { useScreenMetric } from "@/core/logging/use-screen-metric";
-import type { ArchivedFilter, SortKey, SortOrder, Transaction } from "@/data/api/types";
+import type { ArchivedFilter, SortKey, SortOrder, Transaction, TransactionOrigin } from "@/data/api/types";
 import { useCategories, useTags, useTransactionsInfinite, useTransactionSummary } from "@/data/queries/finance";
 import { useCurrentUser } from "@/data/session/session-store";
 import { categoryIcon } from "@/domain/catalog";
@@ -40,6 +40,13 @@ const SORT_OPTIONS: [SortKey, string][] = [
  * Histórico (R09): ordem cronológica inversa com rolagem infinita, busca por descrição,
  * categoria, tag e período (R10), navegação por mês (R26), ordenação (R70) e arquivadas (R52).
  */
+const ORIGIN_LABEL: Record<TransactionOrigin, string> = {
+  all: "Todas",
+  single: "Avulsas",
+  recurring: "Recorrentes",
+  installment: "Parcelas",
+};
+
 export function HistoryTab({ onOpen }: { onOpen: (transaction: Transaction) => void }) {
   const { colors } = useTheme();
   const layout = useResponsiveLayout();
@@ -53,6 +60,7 @@ export function HistoryTab({ onOpen }: { onOpen: (transaction: Transaction) => v
   const [sort, setSort] = useState<SortKey>("date");
   const [order, setOrder] = useState<SortOrder>("desc");
   const [archived, setArchived] = useState<ArchivedFilter>("false");
+  const [origin, setOrigin] = useState<TransactionOrigin>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -71,8 +79,9 @@ export function HistoryTab({ onOpen }: { onOpen: (transaction: Transaction) => v
       categoryId: categoryId ?? undefined,
       tag: tag ?? undefined,
       archived,
+      origin: origin === "all" ? undefined : origin,
     }),
-    [q, useRange, month, from, to, categoryId, tag, archived],
+    [q, useRange, month, from, to, categoryId, tag, archived, origin],
   );
 
   const list = useTransactionsInfinite({ ...filters, sort, order });
@@ -94,6 +103,7 @@ export function HistoryTab({ onOpen }: { onOpen: (transaction: Transaction) => v
     setCategoryId(null);
     setTag(null);
     setArchived("false");
+    setOrigin("all");
   };
 
   const loadMore = useCallback(() => {
@@ -194,12 +204,15 @@ export function HistoryTab({ onOpen }: { onOpen: (transaction: Transaction) => v
         ))}
       </View>
 
-      {selectedCategory || tag || archived !== "false" ? (
+      {selectedCategory || tag || archived !== "false" || origin !== "all" ? (
         <View style={styles.activeFilters}>
           {selectedCategory ? (
             <Chip selected label={selectedCategory.name} trailingIcon="close" onPress={() => setCategoryId(null)} />
           ) : null}
           {tag ? <Chip selected label={`#${tag}`} trailingIcon="close" onPress={() => setTag(null)} /> : null}
+          {origin !== "all" ? (
+            <Chip selected label={ORIGIN_LABEL[origin]} trailingIcon="close" onPress={() => setOrigin("all")} />
+          ) : null}
           {archived !== "false" ? (
             <Chip
               selected
@@ -317,6 +330,18 @@ export function HistoryTab({ onOpen }: { onOpen: (transaction: Transaction) => v
               </View>
             </FilterSection>
           ) : null}
+          <FilterSection label="Origem" hint="Mostra só as transações avulsas, as recorrências ou os parcelamentos.">
+            <SegmentedControl
+              value={origin}
+              onChange={setOrigin}
+              options={[
+                { value: "all", label: "Todas" },
+                { value: "single", label: "Avulsas" },
+                { value: "recurring", label: "Recorrentes" },
+                { value: "installment", label: "Parcelas" },
+              ]}
+            />
+          </FilterSection>
           <FilterSection
             label="Arquivadas"
             hint="Arquivadas saem da lista principal, mas continuam disponíveis para consulta."
